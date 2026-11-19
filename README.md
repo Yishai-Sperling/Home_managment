@@ -17,3 +17,6 @@ npx expo start
 ```bash
 npm run typecheck && npm run lint && npm test
 ```
+
+## הרצה מהירה ב-Windows
+לחיצה כפולה על `run.bat`: מעדכן מ-GitHub, מתקין חבילות אם צריך ומפעיל את Expo.
