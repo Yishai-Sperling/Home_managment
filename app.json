@@ -8,7 +8,14 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.homemgmt.app"
+      "bundleIdentifier": "com.homemgmt.app",
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": [
+          "whatsapp"
+        ],
+        "NSPhotoLibraryUsageDescription": "לבחירת תמונה לדיווח תקלה",
+        "NSCameraUsageDescription": "לצילום תמונה לדיווח תקלה"
+      }
     },
     "android": {
       "adaptiveIcon": {
