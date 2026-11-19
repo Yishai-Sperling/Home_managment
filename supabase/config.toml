@@ -1,0 +1,5 @@
+project_id = "household"
+
+# ה-Webhook מאומת באמצעות הכותרת x-webhook-secret ולא JWT
+[functions.notify-house]
+verify_jwt = false
