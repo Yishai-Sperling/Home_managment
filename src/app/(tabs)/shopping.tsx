@@ -1,3 +1,4 @@
+import { HouseHeader } from '@/features/house';
 import React, { useState } from 'react';
 import { Alert, FlatList, Pressable, ScrollView, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutLeft, LinearTransition } from 'react-native-reanimated';
@@ -92,7 +93,7 @@ export default function ShoppingScreen() {
 
   return (
     <Screen style={pad}>
-      {/* TODO(B): <HouseHeader /> from '@/features/house' goes here */}
+      <HouseHeader />
       <Text variant="title" style={{ marginBottom: spacing.md }}>קניות</Text>
       <FlatList
         data={items ?? []}

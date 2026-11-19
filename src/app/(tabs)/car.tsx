@@ -1,3 +1,4 @@
+import { HouseHeader } from '@/features/house';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, View } from 'react-native';
 import Animated, { FadeInDown, FadeOut, LinearTransition } from 'react-native-reanimated';
@@ -112,7 +113,7 @@ export default function CarScreen() {
 
   return (
     <Screen style={pad}>
-      {/* TODO(B): <HouseHeader /> from '@/features/house' goes here */}
+      <HouseHeader />
       <ScrollView contentContainerStyle={{ gap: spacing.lg, paddingBottom: spacing.xxl * 2 }} keyboardShouldPersistTaps="handled">
         <Text variant="title">רכב</Text>
 

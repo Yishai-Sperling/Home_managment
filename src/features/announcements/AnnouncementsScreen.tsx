@@ -1,3 +1,4 @@
+import { HouseHeader } from '@/features/house';
 import React, { useState } from 'react';
 import { Alert, FlatList, Modal, Pressable, ScrollView, View } from 'react-native';
 import Animated, { FadeInDown, FadeOut, LinearTransition } from 'react-native-reanimated';
@@ -31,7 +32,7 @@ export default function AnnouncementsScreen() {
 
   return (
     <Screen style={pad}>
-      {/* HOUSE_HEADER_SLOT: <HouseHeader /> מגיע מ-@/features/house */}
+      <HouseHeader />
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
         <Text variant="title">מודעות</Text>
         <Button title="+ מודעה חדשה" onPress={() => setOpen(true)} style={{ paddingVertical: 10 }} />
