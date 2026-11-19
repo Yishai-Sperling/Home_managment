@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRealtimeInvalidate } from '@/lib/realtime';
 import { supabase } from '@/lib/supabase';
 import { useCurrentHouseId, useSession } from '@/lib/session';
 import type { CarReservation, Role } from '@/types/database';
@@ -10,17 +10,8 @@ const key = (houseId: string | null) => ['car', houseId] as const;
 export const OVERLAP_MESSAGE = 'הרכב כבר תפוס בחלון הזמן הזה';
 
 export function useReservations(houseId: string | null) {
-  const qc = useQueryClient();
 
-  useEffect(() => {
-    if (!houseId) return;
-    const channel = supabase
-      .channel(`car:${houseId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'car_reservations', filter: `house_id=eq.${houseId}` },
-        () => { qc.invalidateQueries({ queryKey: key(houseId) }); })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [houseId, qc]);
+  useRealtimeInvalidate('car_reservations', houseId, key(houseId));
 
   return useQuery({
     queryKey: key(houseId),

@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRealtimeInvalidate } from '@/lib/realtime';
 import { supabase } from '@/lib/supabase';
 import { useCurrentHouseId, useSession } from '@/lib/session';
 import type { ShoppingCategory, ShoppingItem, ShoppingStatus } from '@/types/database';
@@ -10,17 +10,8 @@ const baseKey = (houseId: string | null) => ['shopping', houseId] as const;
 const listKey = (houseId: string | null, filter: ShoppingFilter) => ['shopping', houseId, filter] as const;
 
 export function useShoppingItems(houseId: string | null, filter: ShoppingFilter = 'all') {
-  const qc = useQueryClient();
 
-  useEffect(() => {
-    if (!houseId) return;
-    const channel = supabase
-      .channel(`shopping:${houseId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'shopping_items', filter: `house_id=eq.${houseId}` },
-        () => { qc.invalidateQueries({ queryKey: baseKey(houseId) }); })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [houseId, qc]);
+  useRealtimeInvalidate('shopping_items', houseId, baseKey(houseId));
 
   return useQuery({
     queryKey: listKey(houseId, filter),

@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRealtimeInvalidate } from '@/lib/realtime';
 import { supabase } from '@/lib/supabase';
 import { useCurrentHouseId, useSession } from '@/lib/session';
 import type { Announcement, AnnouncementType, Priority } from '@/types/database';
@@ -9,17 +9,8 @@ const key = (houseId: string | null) => ['announcements', houseId] as const;
 
 export function useAnnouncements() {
   const houseId = useCurrentHouseId();
-  const qc = useQueryClient();
 
-  useEffect(() => {
-    if (!houseId) return;
-    const channel = supabase
-      .channel(`announcements:${houseId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements', filter: `house_id=eq.${houseId}` },
-        () => qc.invalidateQueries({ queryKey: key(houseId) }))
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [houseId, qc]);
+  useRealtimeInvalidate('announcements', houseId, key(houseId));
 
   return useQuery({
     queryKey: key(houseId),

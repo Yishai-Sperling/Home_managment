@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRealtimeInvalidate } from '@/lib/realtime';
 import { supabase } from '@/lib/supabase';
 import { useCurrentHouseId, useSession } from '@/lib/session';
 import type { HouseMember, Issue, IssueCategory, IssueStatus, IssueUrgency } from '@/types/database';
@@ -10,17 +10,8 @@ const BUCKET = 'issue-images';
 
 export function useIssues(filter: IssueFilter = 'all') {
   const houseId = useCurrentHouseId();
-  const qc = useQueryClient();
 
-  useEffect(() => {
-    if (!houseId) return;
-    const channel = supabase
-      .channel(`issues:${houseId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'issues', filter: `house_id=eq.${houseId}` },
-        () => qc.invalidateQueries({ queryKey: key(houseId) }))
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [houseId, qc]);
+  useRealtimeInvalidate('issues', houseId, key(houseId));
 
   return useQuery({
     queryKey: key(houseId),
