@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { useCurrentHouseId, useSession } from '@/lib/session';
 import type { CarReservation, Role } from '@/types/database';
 import { hasOverlap } from './overlap';
+import { addDays, startOfDay } from './timeline';
 
 const key = (houseId: string | null) => ['car', houseId] as const;
 
@@ -20,6 +21,23 @@ export function useReservations(houseId: string | null) {
       // רק הזמנות שלא הסתיימו
       const { data, error } = await supabase.from('car_reservations').select('*')
         .eq('house_id', houseId!).gt('ends_at', new Date().toISOString()).order('starts_at', { ascending: true });
+      if (error) throw error;
+      return data as CarReservation[];
+    },
+  });
+}
+
+/** שריונים שנוגעים ביום מסוים (כולל כאלה שהסתיימו), ללוח היום. */
+export function useReservationsForDay(houseId: string | null, day: Date) {
+  const from = startOfDay(day);
+  const to = addDays(day, 1);
+  return useQuery({
+    queryKey: [...key(houseId), 'day', from.getTime()] as const,
+    enabled: !!houseId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('car_reservations').select('*')
+        .eq('house_id', houseId!).lt('starts_at', to.toISOString()).gt('ends_at', from.toISOString())
+        .order('starts_at', { ascending: true });
       if (error) throw error;
       return data as CarReservation[];
     },

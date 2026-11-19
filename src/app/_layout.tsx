@@ -6,13 +6,15 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ensureRTL } from '@/lib/rtl';
 import { SessionProvider } from '@/lib/session';
+import { useTheme } from '@/theme';
 
 ensureRTL();
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 15_000 } } });
 
 export default function RootLayout() {
+  const { colors } = useTheme();
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <SessionProvider>

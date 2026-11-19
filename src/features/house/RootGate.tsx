@@ -28,7 +28,7 @@ export function RootGate() {
   const hasHouse = signedIn && !!profile.data?.current_house_id;
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
       <Stack.Protected guard={!signedIn}>
         <Stack.Screen name="(auth)" />
       </Stack.Protected>
@@ -37,7 +37,7 @@ export function RootGate() {
       </Stack.Protected>
       <Stack.Protected guard={hasHouse}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="settings" options={{ animation: 'slide_from_left' }} />
+        <Stack.Screen name="settings" />
       </Stack.Protected>
     </Stack>
   );

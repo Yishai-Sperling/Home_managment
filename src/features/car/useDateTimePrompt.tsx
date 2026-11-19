@@ -4,7 +4,7 @@ import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/d
 import { Button, Text } from '@/components/ui';
 import { radius, spacing, useTheme } from '@/theme';
 
-export type PromptKind = 'datetime' | 'time';
+export type PromptKind = 'datetime' | 'date' | 'time';
 interface Options { kind: PromptKind; minimum?: Date }
 
 function mergeTime(day: Date, time: Date) {
@@ -25,7 +25,9 @@ function promptAndroid(value: Date, { kind, minimum }: Options): Promise<Date | 
       value, mode: 'date', minimumDate: minimum,
       onChange: (e, d) => {
         if (e.type !== 'set' || !d) return resolve(null);
-        openTime(mergeTime(d, value));
+        const merged = mergeTime(d, value);
+        if (kind === 'date') resolve(merged);
+        else openTime(merged);
       },
     });
   });
@@ -71,7 +73,7 @@ export function useDateTimePrompt() {
         <View style={{ flexDirection: 'row', gap: spacing.md }}>
           <Button title="ביטול" variant="secondary" style={{ flex: 1 }} onPress={() => close(null)} />
           {state.step === 'date' ? (
-            <Button title="הבא" style={{ flex: 1 }} onPress={() => setState((s) => (s ? { ...s, step: 'time' } : s))} />
+            <Button title={state.opts.kind === 'datetime' ? 'הבא' : 'אישור'} style={{ flex: 1 }} onPress={() => (state.opts.kind === 'datetime' ? setState((s) => (s ? { ...s, step: 'time' } : s)) : close(state.value))} />
           ) : (
             <Button title="אישור" style={{ flex: 1 }} onPress={() => close(state.value)} />
           )}

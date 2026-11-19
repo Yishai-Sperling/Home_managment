@@ -6,6 +6,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, Screen, Text, useScreenPadding } from '@/components/ui';
 import { HouseHeader, useCurrentHouse } from '@/features/house';
+import { useProfile, useSession } from '@/lib/session';
 import { useShoppingItems } from '@/features/shopping/hooks';
 import { useReservations, useHouseDirectory } from '@/features/car/hooks';
 import { currentReservation, reservationsToday } from '@/features/car/overlap';
@@ -39,7 +40,10 @@ export default function DashboardScreen() {
   const pad = useScreenPadding();
   const { colors } = useTheme();
   const qc = useQueryClient();
-  const { houseId, house } = useCurrentHouse();
+  const { houseId } = useCurrentHouse();
+  const { session } = useSession();
+  const profile = useProfile().data;
+  const firstName = (profile?.full_name?.trim().split(/\s+/)[0]) || session?.user.email?.split('@')[0] || '';
   const shopping = useShoppingItems(houseId, 'pending');
   const reservations = useReservations(houseId);
   const directory = useHouseDirectory(houseId);
@@ -72,7 +76,7 @@ export default function DashboardScreen() {
       <ScrollView
         contentContainerStyle={{ gap: spacing.lg, paddingBottom: spacing.xxl * 2 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
-        <Text variant="title">{house?.name ? `שלום, ${house.name}` : 'בית'}</Text>
+        <Text variant="title">{firstName ? `שלום, ${firstName}` : 'שלום'}</Text>
 
         <View style={{ flexDirection: 'row', gap: spacing.md }}>
           <Stat delay={0} icon="cart" tint={colors.primary} value={shopping.data?.length ?? 0} label="פריטים לקנייה" onPress={() => router.push('/shopping')} />

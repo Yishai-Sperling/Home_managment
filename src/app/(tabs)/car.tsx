@@ -1,69 +1,30 @@
-import { HouseHeader } from '@/features/house';
-import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, View } from 'react-native';
-import Animated from 'react-native-reanimated';
-import { useListMotion, softLayout, type ListMotion } from '@/theme/motion';
-import * as Haptics from 'expo-haptics';
+import React, { useEffect, useState } from 'react';
+import { Alert, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, Card, EmptyState, Input, Screen, Text, useScreenPadding } from '@/components/ui';
+import * as Haptics from 'expo-haptics';
+import { Button, Card, Screen, Text, useScreenPadding } from '@/components/ui';
+import { HouseHeader } from '@/features/house';
+import { BookingSheet } from '@/features/car/BookingSheet';
+import { DayTimeline } from '@/features/car/DayTimeline';
+import {
+  useCancelReservation, useCreateReservation, useHouseDirectory, useReservations, useReservationsForDay,
+} from '@/features/car/hooks';
+import { currentReservation, hasOverlap } from '@/features/car/overlap';
+import { addDays, dayLabel, nextQuarter, startOfDay } from '@/features/car/timeline';
 import { useCurrentHouseId, useSession } from '@/lib/session';
 import { radius, spacing, useTheme } from '@/theme';
 import type { CarReservation } from '@/types/database';
-import {
-  useCancelReservation, useCreateReservation, useHouseDirectory, useReservations,
-} from '@/features/car/hooks';
-import { currentReservation, hasOverlap, reservationsToday } from '@/features/car/overlap';
-import { useDateTimePrompt } from '@/features/car/useDateTimePrompt';
 
-const timeFmt = (iso: string) => new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false });
-const dateFmt = (iso: string) => new Date(iso).toLocaleDateString('he-IL', { weekday: 'short', day: 'numeric', month: 'numeric' });
-const rangeFmt = (r: CarReservation) => {
-  const sameDay = new Date(r.starts_at).toDateString() === new Date(r.ends_at).toDateString();
-  return sameDay
-    ? `${dateFmt(r.starts_at)} · ${timeFmt(r.starts_at)}–${timeFmt(r.ends_at)}`
-    : `${dateFmt(r.starts_at)} ${timeFmt(r.starts_at)} – ${dateFmt(r.ends_at)} ${timeFmt(r.ends_at)}`;
-};
+const MIN = 60_000;
+const hh = (iso: string | Date) => new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false });
 
-function defaultStart() {
-  const d = new Date();
-  d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15, 0, 0);
-  return d;
-}
-
-function TimeRow({ label, value, onPress }: { label: string; value: Date; onPress: () => void }) {
+function NavButton({ icon, onPress, label }: { icon: 'chevron-forward' | 'chevron-back'; onPress: () => void; label: string }) {
   const { colors } = useTheme();
-  const iso = value.toISOString();
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: pressed ? colors.surfaceAlt : colors.bg, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md })}>
-      <Ionicons name="calendar-outline" size={22} color={colors.primary} />
-      <Text variant="label" muted style={{ width: 56 }}>{label}</Text>
-      <Text style={{ flex: 1, fontWeight: '600' }}>{dateFmt(iso)} · {timeFmt(iso)}</Text>
-      <Ionicons name="chevron-back" size={18} color={colors.textMuted} />
+    <Pressable accessibilityLabel={label} onPress={() => { Haptics.selectionAsync().catch(() => {}); onPress(); }}
+      style={({ pressed }) => ({ width: 40, height: 40, borderRadius: radius.pill, backgroundColor: pressed ? colors.border : colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' })}>
+      <Ionicons name={icon} size={20} color={colors.text} />
     </Pressable>
-  );
-}
-
-function ReservationRow({ r, who, canCancel, onCancel, motion }: { motion: ListMotion; r: CarReservation; who: string; canCancel: boolean; onCancel: () => void }) {
-  const { colors } = useTheme();
-  return (
-    <Animated.View
-      entering={motion.entering} exiting={motion.exiting} layout={motion.layout}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.border }}>
-      <View style={{ flex: 1, gap: 2 }}>
-        <Text variant="body" style={{ fontWeight: '600' }}>{who}{r.purpose ? ` · ${r.purpose}` : ''}</Text>
-        <Text variant="small" muted>{rangeFmt(r)}</Text>
-        {r.notes ? <Text variant="small" muted>{r.notes}</Text> : null}
-      </View>
-      {canCancel ? (
-        <Button
-          title="ביטול" variant="secondary" style={{ paddingVertical: 8, paddingHorizontal: spacing.md }}
-          onPress={() => Alert.alert('ביטול הזמנה', 'לבטל את ההזמנה?', [
-            { text: 'לא', style: 'cancel' },
-            { text: 'בטל הזמנה', style: 'destructive', onPress: onCancel },
-          ])}
-        />
-      ) : null}
-    </Animated.View>
   );
 }
 
@@ -74,8 +35,7 @@ export default function CarScreen() {
   const { session } = useSession();
   const uid = session?.user.id;
 
-  const { data: list = [], isLoading, error, refetch } = useReservations(houseId);
-  const motion = useListMotion(!isLoading);
+  const { data: upcoming = [] } = useReservations(houseId);
   const { data: dir } = useHouseDirectory(houseId);
   const create = useCreateReservation();
   const cancel = useCancelReservation();
@@ -86,59 +46,53 @@ export default function CarScreen() {
     return () => clearInterval(t);
   }, []);
 
-  const [start, setStart] = useState(defaultStart);
-  const [end, setEnd] = useState(() => new Date(defaultStart().getTime() + 60 * 60 * 1000));
-  const [purpose, setPurpose] = useState('');
-  const [notes, setNotes] = useState('');
-  const [formError, setFormError] = useState<string | null>(null);
-  const { prompt, sheet } = useDateTimePrompt();
-  const hour = 60 * 60 * 1000;
+  const [day, setDay] = useState(() => startOfDay(new Date()));
+  const [scrollSignal, setScrollSignal] = useState(0);
+  const { data: dayList = [] } = useReservationsForDay(houseId, day);
 
-  // לחיצה על "התחלה": תאריך + שעה, ואחריהם מיד שעת סיום.
-  const pickStart = async () => {
-    const s = await prompt(start, { kind: 'datetime', minimum: new Date() });
-    if (!s) return;
-    setStart(s);
-    let e = new Date(s.getTime() + hour);
-    const picked = await prompt(e, { kind: 'time' });
-    if (picked) {
-      e = new Date(s);
-      e.setHours(picked.getHours(), picked.getMinutes(), 0, 0);
-      if (e <= s) e = new Date(e.getTime() + 24 * hour);
-    }
-    setEnd(e);
-  };
-  const pickEnd = async () => {
-    const e = await prompt(end, { kind: 'datetime', minimum: start });
-    if (e) setEnd(e);
-  };
-  const conflict = end > start && hasOverlap(list, start, end);
-  const durationMin = Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
-  const durationText = `${Math.floor(durationMin / 60) ? `${Math.floor(durationMin / 60)} ש׳ ` : ''}${durationMin % 60 ? `${durationMin % 60} ד׳` : ''}`.trim();
+  const [booking, setBooking] = useState<{ start: Date; end: Date } | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const nameOf = (id: string) => (id === uid ? 'את/ה' : dir?.names[id] ?? 'דייר');
-  const current = useMemo(() => currentReservation(list, now), [list, now]);
-  const today = useMemo(() => reservationsToday(list, now), [list, now]);
-  const upcoming = useMemo(() => {
-    const todayIds = new Set(today.map((r) => r.id));
-    return list.filter((r) => !todayIds.has(r.id) && new Date(r.starts_at) > now);
-  }, [list, today, now]);
-  const mine = current && current.user_id === uid ? current : null;
   const canCancel = (r: CarReservation) => r.user_id === uid || !!dir?.isAdmin;
+  const current = currentReservation(upcoming, now);
+  const mine = current && current.user_id === uid ? current : null;
+  const conflict = !!booking && booking.end > booking.start && hasOverlap(upcoming, booking.start, booking.end);
 
-  const submit = () => {
+  const openBooking = (start: Date) => {
+    Haptics.selectionAsync().catch(() => {});
     setFormError(null);
-    if (start.getTime() < Date.now() - 60_000) { setFormError('לא ניתן להזמין לזמן שעבר'); return; }
-    if (end <= start) { setFormError('שעת הסיום חייבת להיות אחרי שעת ההתחלה'); return; }
-    if (hasOverlap(list, start, end)) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
-      setFormError('הרכב כבר תפוס בחלון הזמן הזה');
-      return;
-    }
-    create.mutate({ starts_at: start, ends_at: end, purpose, notes }, {
+    setBooking({ start, end: new Date(start.getTime() + 60 * MIN) });
+  };
+  const openDefault = () => {
+    const isToday = startOfDay(day).getTime() === startOfDay(now).getTime();
+    const start = isToday ? nextQuarter(now) : new Date(day.getFullYear(), day.getMonth(), day.getDate(), 9, 0);
+    openBooking(start);
+  };
+  const onSlotPress = (at: Date) => {
+    if (at.getTime() < now.getTime() - 15 * MIN) return;
+    openBooking(at < now ? nextQuarter(now) : at);
+  };
+
+  const doCancel = (id: string) => cancel.mutate(id, {
+    onSuccess: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}),
+  });
+  const onBlockPress = (r: CarReservation) => {
+    const details = `${nameOf(r.user_id)} · ${hh(r.starts_at)}–${hh(r.ends_at)}${r.purpose ? `\nמטרה: ${r.purpose}` : ''}${r.notes ? `\n${r.notes}` : ''}`;
+    Alert.alert('שריון רכב', details, canCancel(r)
+      ? [{ text: 'סגור', style: 'cancel' }, { text: 'בטל שריון', style: 'destructive', onPress: () => doCancel(r.id) }]
+      : [{ text: 'סגור' }]);
+  };
+
+  const submit = (purpose: string, notes: string) => {
+    if (!booking) return;
+    setFormError(null);
+    if (booking.start.getTime() < Date.now() - 60_000) { setFormError('לא ניתן לשריין לזמן שעבר'); return; }
+    create.mutate({ starts_at: booking.start, ends_at: booking.end, purpose, notes }, {
       onSuccess: () => {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-        setPurpose(''); setNotes('');
+        setDay(startOfDay(booking.start));
+        setBooking(null);
       },
       onError: (e) => {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
@@ -148,70 +102,56 @@ export default function CarScreen() {
   };
 
   const busy = !!current;
-  const doCancel = (id: string) => cancel.mutate(id, { onSuccess: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}) });
+  const isToday = startOfDay(day).getTime() === startOfDay(now).getTime();
 
   return (
     <Screen style={pad}>
-      <HouseHeader />
-      <ScrollView contentContainerStyle={{ gap: spacing.lg, paddingBottom: spacing.xxl * 2 }} keyboardShouldPersistTaps="handled">
-        <Text variant="title">רכב</Text>
+      <HouseHeader title="רכב" />
 
-        <Animated.View layout={softLayout}>
-          <Card style={{ backgroundColor: busy ? colors.warningSoft : colors.successSoft, flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-            <Ionicons name="car-sport" size={34} color={busy ? colors.warning : colors.success} />
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text variant="heading">{busy ? 'הרכב תפוס' : 'הרכב זמין'}</Text>
-              <Text muted>
-                {current ? `${nameOf(current.user_id)} עד ${timeFmt(current.ends_at)}` : 'אפשר לקחת עכשיו'}
-              </Text>
-            </View>
-          </Card>
-        </Animated.View>
-
-        {mine ? (
-          <Animated.View>
-            <Card style={{ backgroundColor: colors.primarySoft, gap: spacing.sm }}>
-              <Text variant="label" style={{ color: colors.primary }}>יש לך הזמנה פעילה</Text>
-              <Text>{rangeFmt(mine)}</Text>
-              <Button title="סיימתי, שחרר את הרכב" variant="secondary" onPress={() => doCancel(mine.id)} />
-            </Card>
-          </Animated.View>
-        ) : null}
-
-        <View style={{ gap: spacing.sm }}>
-          <Text variant="heading">היום</Text>
-          {isLoading ? <Text muted>טוען…</Text> : error ? (
-            <EmptyState title="שגיאה בטעינה" hint="נסו שוב" />
-          ) : today.length === 0 ? (
-            <Text muted>אין הזמנות להיום</Text>
-          ) : today.map((r) => (
-            <ReservationRow key={r.id} motion={motion} r={r} who={nameOf(r.user_id)} canCancel={canCancel(r)} onCancel={() => doCancel(r.id)} />
-          ))}
+      <Card style={{ backgroundColor: busy ? colors.warningSoft : colors.successSoft, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md }}>
+        <Ionicons name="car-sport" size={28} color={busy ? colors.warning : colors.success} />
+        <View style={{ flex: 1 }}>
+          <Text variant="heading">{busy ? 'הרכב תפוס' : 'הרכב זמין'}</Text>
+          <Text variant="small" muted>{current ? `${nameOf(current.user_id)} עד ${hh(current.ends_at)}` : 'אפשר לקחת עכשיו'}</Text>
         </View>
+        {mine ? <Button title="שחרר" variant="secondary" onPress={() => doCancel(mine.id)} style={{ paddingVertical: 8, paddingHorizontal: spacing.lg }} /> : null}
+      </Card>
 
-        {upcoming.length > 0 ? (
-          <View style={{ gap: spacing.sm }}>
-            <Text variant="heading">בקרוב</Text>
-            {upcoming.map((r) => (
-              <ReservationRow key={r.id} motion={motion} r={r} who={nameOf(r.user_id)} canCancel={canCancel(r)} onCancel={() => doCancel(r.id)} />
-            ))}
-          </View>
-        ) : null}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginVertical: spacing.md }}>
+        <NavButton icon="chevron-forward" label="יום קודם" onPress={() => setDay((d) => addDays(d, -1))} />
+        <Text variant="heading" style={{ flex: 1, textAlign: 'center' }}>{dayLabel(day, now)}</Text>
+        <NavButton icon="chevron-back" label="יום הבא" onPress={() => setDay((d) => addDays(d, 1))} />
+        <Pressable
+          onPress={() => { Haptics.selectionAsync().catch(() => {}); setDay(startOfDay(now)); setScrollSignal((n) => n + 1); }}
+          style={{ paddingHorizontal: spacing.md, height: 40, borderRadius: radius.pill, backgroundColor: isToday ? colors.primarySoft : colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}>
+          <Text variant="label" style={{ color: colors.primary }}>עכשיו</Text>
+        </Pressable>
+      </View>
 
-        <Card style={{ gap: spacing.md }}>
-          <Text variant="heading">הזמנת הרכב</Text>
-          <TimeRow label="התחלה" value={start} onPress={pickStart} />
-          <TimeRow label="סיום" value={end} onPress={pickEnd} />
-          {durationText ? <Text variant="small" muted>משך: {durationText}</Text> : null}
-          {conflict ? <Text variant="small" style={{ color: colors.danger }}>הרכב כבר תפוס בחלון הזמן הזה</Text> : null}
-          <Input label="מטרה" placeholder="לאן נוסעים?" value={purpose} onChangeText={setPurpose} />
-          <Input label="הערות" placeholder="אופציונלי" value={notes} onChangeText={setNotes} multiline />
-          {formError ? <Text variant="small" style={{ color: colors.danger }}>{formError}</Text> : null}
-          <Button title="הזמן רכב" onPress={submit} loading={create.isPending} disabled={!houseId || conflict} />
-          <Button title="רענון" variant="ghost" onPress={() => { refetch(); }} />
-        </Card>
-      </ScrollView>
-      {sheet}
+      <View style={{ flex: 1 }}>
+        <DayTimeline
+          day={day} now={now} reservations={dayList} uid={uid} nameOf={nameOf} scrollSignal={scrollSignal}
+          draft={booking ? { start: booking.start, end: booking.end, conflict } : null}
+          onSlotPress={onSlotPress} onBlockPress={onBlockPress}
+        />
+      </View>
+
+      {!booking ? (
+        <Pressable
+          onPress={openDefault}
+          style={({ pressed }) => ({ position: 'absolute', bottom: spacing.lg, end: spacing.lg, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.primary, borderRadius: radius.pill, paddingVertical: 14, paddingHorizontal: spacing.xl, opacity: pressed ? 0.85 : 1, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 5 })}>
+          <Ionicons name="add" size={22} color={colors.primaryText} />
+          <Text variant="label" style={{ color: colors.primaryText, fontSize: 16 }}>שריון</Text>
+        </Pressable>
+      ) : null}
+
+      {booking ? (
+        <BookingSheet
+          now={now} start={booking.start} end={booking.end} conflict={conflict} pending={create.isPending} error={formError}
+          onChange={(start, end) => { setFormError(null); setBooking({ start, end }); setDay(startOfDay(start)); }}
+          onClose={() => setBooking(null)} onSubmit={submit}
+        />
+      ) : null}
     </Screen>
   );
 }
