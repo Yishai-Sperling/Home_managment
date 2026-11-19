@@ -1,7 +1,9 @@
 import { HouseHeader } from '@/features/house';
 import React, { useState } from 'react';
 import { Alert, FlatList, Modal, Pressable, ScrollView, View } from 'react-native';
-import Animated, { FadeInDown, FadeOut, LinearTransition } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
+import { useListMotion } from '@/theme/motion';
+import { uuid } from '@/lib/uuid';
 import * as Haptics from 'expo-haptics';
 import { Button, Card, Chip, EmptyState, Input, Screen, Text, useScreenPadding } from '@/components/ui';
 import { radius, spacing, useTheme } from '@/theme';
@@ -21,6 +23,7 @@ export default function AnnouncementsScreen() {
   const { session } = useSession();
   const isAdmin = useIsAdmin();
   const { data, isLoading, refetch, isRefetching } = useAnnouncements();
+  const motion = useListMotion(!isLoading);
   const del = useDeleteAnnouncement();
   const [open, setOpen] = useState(false);
 
@@ -47,7 +50,7 @@ export default function AnnouncementsScreen() {
         renderItem={({ item: a }) => {
           const high = a.priority === 'high';
           return (
-            <Animated.View entering={FadeInDown.springify().damping(16)} exiting={FadeOut} layout={LinearTransition.springify().damping(18)}>
+            <Animated.View entering={motion.entering} exiting={motion.exiting} layout={motion.layout}>
               <Card style={[
                 { gap: spacing.sm },
                 high && { borderColor: colors.danger, borderWidth: 2, backgroundColor: colors.dangerSoft },
@@ -101,7 +104,7 @@ function AddModal({ visible, onClose }: { visible: boolean; onClose: () => void 
 
   const reset = () => { setTitle(''); setBody(''); setType('general'); setPriority('normal'); setDateText(''); };
   const save = () => {
-    add.mutate({ title: title.trim(), body: body.trim() || null, type, priority, event_date: parsed });
+    add.mutate({ id: uuid(), title: title.trim(), body: body.trim() || null, type, priority, event_date: parsed });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     reset();
     onClose();

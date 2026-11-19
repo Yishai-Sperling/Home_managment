@@ -11,7 +11,7 @@ type Variant = keyof typeof font;
 
 export function Text({ variant = 'body', muted, style, ...p }: TextProps & { variant?: Variant; muted?: boolean }) {
   const { colors } = useTheme();
-  return <RNText {...p} style={[font[variant], { color: muted ? colors.textMuted : colors.text, textAlign: 'right', writingDirection: 'rtl' }, style]} />;
+  return <RNText {...p} style={[font[variant], { color: muted ? colors.textMuted : colors.text }, style]} />;
 }
 
 export function Screen({ children, style, ...p }: ViewProps) {
@@ -48,7 +48,7 @@ export function Input({ label, style, ...p }: TextInputProps & { label?: string 
       <TextInput
         placeholderTextColor={colors.textMuted}
         {...p}
-        style={[{ backgroundColor: colors.surface, color: colors.text, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: 12, fontSize: 16, textAlign: 'right', writingDirection: 'rtl' }, style]}
+        style={[{ backgroundColor: colors.surface, color: colors.text, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: 12, fontSize: 16 }, style]}
       />
     </View>
   );

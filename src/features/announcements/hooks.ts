@@ -25,6 +25,7 @@ export function useAnnouncements() {
 }
 
 export interface NewAnnouncement {
+  id: string;
   title: string;
   body: string | null;
   type: AnnouncementType;
@@ -49,7 +50,7 @@ export function useAddAnnouncement() {
       await qc.cancelQueries({ queryKey: key(houseId) });
       const prev = qc.getQueryData<Announcement[]>(key(houseId));
       const optimistic: Announcement = {
-        ...input, id: `tmp-${Date.now()}`, house_id: houseId!, created_by: session!.user.id, created_at: new Date().toISOString(),
+        ...input, house_id: houseId!, created_by: session!.user.id, created_at: new Date().toISOString(),
       };
       qc.setQueryData<Announcement[]>(key(houseId), (old) => [optimistic, ...(old ?? [])]);
       return { prev };

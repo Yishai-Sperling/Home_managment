@@ -18,7 +18,6 @@ export default function TabsLayout() {
       {tabs.map((t) => (
         <Tabs.Screen key={t.name} name={t.name} options={{ title: t.title, tabBarIcon: ({ color, size }) => <Ionicons name={t.icon as any} color={color as string} size={size} /> }} />
       ))}
-      <Tabs.Screen name="settings" options={{ href: null }} />
     </Tabs>
   );
 }

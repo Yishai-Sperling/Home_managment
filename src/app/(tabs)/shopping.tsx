@@ -1,7 +1,9 @@
 import { HouseHeader } from '@/features/house';
 import React, { useState } from 'react';
 import { Alert, FlatList, Pressable, ScrollView, View } from 'react-native';
-import Animated, { FadeInDown, FadeOutLeft, LinearTransition } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
+import { useListMotion, type ListMotion } from '@/theme/motion';
+import { uuid } from '@/lib/uuid';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, Chip, EmptyState, Input, Screen, Text, useScreenPadding } from '@/components/ui';
@@ -23,14 +25,11 @@ const filters: { key: ShoppingFilter; label: string }[] = [
   { key: 'bought', label: shoppingStatusLabels.bought },
 ];
 
-function ItemRow({ item, onToggle, onDelete }: { item: ShoppingItem; onToggle: () => void; onDelete: () => void }) {
+function ItemRow({ item, motion, onToggle, onDelete }: { item: ShoppingItem; motion: ListMotion; onToggle: () => void; onDelete: () => void }) {
   const { colors } = useTheme();
   const bought = item.status === 'bought';
   return (
-    <Animated.View
-      entering={FadeInDown.springify().damping(18)}
-      exiting={FadeOutLeft.duration(200)}
-      layout={LinearTransition.springify().damping(18)}>
+    <Animated.View entering={motion.entering} exiting={motion.exiting} layout={motion.layout}>
       <Pressable
         onPress={onToggle}
         onLongPress={() => {
@@ -79,6 +78,7 @@ export default function ShoppingScreen() {
   const [category, setCategory] = useState<ShoppingCategory>('groceries');
 
   const { data: items, isLoading, error, refetch, isRefetching } = useShoppingItems(houseId, filter);
+  const motion = useListMotion(!isLoading);
   const add = useAddItem();
   const toggle = useToggleBought();
   const del = useDeleteItem();
@@ -86,7 +86,7 @@ export default function ShoppingScreen() {
   const submit = () => {
     if (!name.trim()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    add.mutate({ name, quantity, category });
+    add.mutate({ id: uuid(), name, quantity, category });
     setName('');
     setQuantity('');
   };
@@ -129,6 +129,7 @@ export default function ShoppingScreen() {
         }
         renderItem={({ item }) => (
           <ItemRow
+            motion={motion}
             item={item}
             onToggle={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});

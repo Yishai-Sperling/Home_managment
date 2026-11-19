@@ -1,3 +1,5 @@
+import { decode } from 'base64-arraybuffer';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRealtimeInvalidate } from '@/lib/realtime';
 import { supabase } from '@/lib/supabase';
@@ -7,6 +9,7 @@ import { filterIssues, issueImagePath, sortIssues, type IssueFilter } from './he
 
 const key = (houseId: string | null) => ['issues', houseId] as const;
 const BUCKET = 'issue-images';
+const MAX_WIDTH = 1600;
 
 export function useIssues(filter: IssueFilter = 'all') {
   const houseId = useCurrentHouseId();
@@ -26,6 +29,7 @@ export function useIssues(filter: IssueFilter = 'all') {
 }
 
 export interface NewIssue {
+  id: string;
   title: string;
   description: string | null;
   category: IssueCategory;
@@ -35,10 +39,16 @@ export interface NewIssue {
   imageUri?: string | null;
 }
 
+/** מקטין לרוחב מקסימלי, ממיר ל-JPEG (גם HEIC) ומעלה כ-ArrayBuffer מ-base64. */
 async function uploadImage(houseId: string, uri: string): Promise<string> {
   const path = issueImagePath(houseId);
-  const buf = await (await fetch(uri)).arrayBuffer();
-  const { error } = await supabase.storage.from(BUCKET).upload(path, buf, { contentType: 'image/jpeg' });
+  const loaded = await ImageManipulator.manipulate(uri).renderAsync();
+  const ref = loaded.width > MAX_WIDTH
+    ? await ImageManipulator.manipulate(loaded).resize({ width: MAX_WIDTH }).renderAsync()
+    : loaded;
+  const saved = await ref.saveAsync({ format: SaveFormat.JPEG, compress: 0.7, base64: true });
+  if (!saved.base64) throw new Error('המרת התמונה נכשלה');
+  const { error } = await supabase.storage.from(BUCKET).upload(path, decode(saved.base64), { contentType: 'image/jpeg' });
   if (error) throw error;
   return path;
 }
@@ -64,7 +74,7 @@ export function useReportIssue() {
       await qc.cancelQueries({ queryKey: key(houseId) });
       const prev = qc.getQueryData<Issue[]>(key(houseId));
       const optimistic: Issue = {
-        ...input, id: `tmp-${Date.now()}`, house_id: houseId!, status: 'open', image_path: null,
+        ...input, house_id: houseId!, status: 'open', image_path: null,
         created_by: session!.user.id, created_at: new Date().toISOString(),
       };
       qc.setQueryData<Issue[]>(key(houseId), (old) => [optimistic, ...(old ?? [])]);

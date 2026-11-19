@@ -37,6 +37,7 @@ export function RootGate() {
       </Stack.Protected>
       <Stack.Protected guard={hasHouse}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="settings" options={{ animation: 'slide_from_left' }} />
       </Stack.Protected>
     </Stack>
   );

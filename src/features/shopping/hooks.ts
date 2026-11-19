@@ -45,7 +45,7 @@ function useOptimistic<V>(patch: (items: ShoppingItem[], v: V) => ShoppingItem[]
   };
 }
 
-export interface NewItem { name: string; quantity?: string; category: ShoppingCategory }
+export interface NewItem { id: string; name: string; quantity?: string; category: ShoppingCategory }
 
 export function useAddItem() {
   const houseId = useCurrentHouseId();
@@ -53,7 +53,7 @@ export function useAddItem() {
   const userId = session?.user.id;
   const opt = useOptimistic<NewItem>((items, v) => [
     {
-      id: `tmp-${Date.now()}`, house_id: houseId ?? '', name: v.name, quantity: v.quantity?.trim() || null,
+      id: v.id, house_id: houseId ?? '', name: v.name, quantity: v.quantity?.trim() || null,
       category: v.category, status: 'pending', added_by: userId ?? '', created_at: new Date().toISOString(),
     },
     ...items,
@@ -62,7 +62,7 @@ export function useAddItem() {
     mutationFn: async (v: NewItem) => {
       if (!houseId || !userId) throw new Error('אין בית פעיל');
       const { error } = await supabase.from('shopping_items').insert({
-        house_id: houseId, name: v.name.trim(), quantity: v.quantity?.trim() || null,
+        id: v.id, house_id: houseId, name: v.name.trim(), quantity: v.quantity?.trim() || null,
         category: v.category, status: 'pending', added_by: userId,
       });
       if (error) throw error;

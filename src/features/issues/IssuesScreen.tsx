@@ -1,7 +1,9 @@
 import { HouseHeader } from '@/features/house';
 import React, { useState } from 'react';
-import { Alert, FlatList, Image, Modal, Pressable, ScrollView, View } from 'react-native';
-import Animated, { FadeInDown, FadeOut, LinearTransition } from 'react-native-reanimated';
+import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, ScrollView, View } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { useListMotion } from '@/theme/motion';
+import { uuid } from '@/lib/uuid';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { Button, Card, Chip, EmptyState, Input, Screen, Text, useScreenPadding } from '@/components/ui';
@@ -39,6 +41,7 @@ export default function IssuesScreen() {
   const { colors } = useTheme();
   const [filter, setFilter] = useState<IssueFilter>('all');
   const { data, isLoading, refetch, isRefetching } = useIssues(filter);
+  const motion = useListMotion(!isLoading);
   const members = useIssueHouseMembers().data ?? [];
   const [reporting, setReporting] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -66,7 +69,7 @@ export default function IssuesScreen() {
         renderItem={({ item: i }) => {
           const assignee = members.find((m) => m.user_id === i.assignee_id);
           return (
-            <Animated.View entering={FadeInDown.springify().damping(16)} exiting={FadeOut} layout={LinearTransition.springify().damping(18)}>
+            <Animated.View entering={motion.entering} exiting={motion.exiting} layout={motion.layout}>
               <Pressable onPress={() => { Haptics.selectionAsync().catch(() => {}); setSelectedId(i.id); }}>
                 <Card style={[{ gap: spacing.sm }, i.urgency === 'urgent' && i.status !== 'closed' && { borderColor: colors.danger, borderWidth: 2 }, i.status === 'closed' && { opacity: 0.65 }]}>
                   <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>
@@ -120,7 +123,7 @@ function ReportModal({ visible, onClose }: { visible: boolean; onClose: () => vo
   const reset = () => { setTitle(''); setDescription(''); setCategory('general'); setUrgency('normal'); setAssignee(null); setImageUri(null); };
   const save = () => {
     report.mutate(
-      { title: title.trim(), description: description.trim() || null, category, urgency, assignee_id: assignee, imageUri },
+      { id: uuid(), title: title.trim(), description: description.trim() || null, category, urgency, assignee_id: assignee, imageUri },
       { onError: () => Alert.alert('שליחת הדיווח נכשלה') },
     );
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -182,6 +185,7 @@ function DetailModal({ issue, onClose }: { issue: Issue | null; onClose: () => v
   const assign = useAssignIssue();
   const del = useDeleteIssue();
   const img = useIssueImageUrl(issue?.image_path ?? null);
+  const [imgFailed, setImgFailed] = useState(false);
 
   const confirmDelete = () => {
     if (!issue) return;
@@ -202,7 +206,11 @@ function DetailModal({ issue, onClose }: { issue: Issue | null; onClose: () => v
             </View>
             <Text variant="title">{issue.title}</Text>
             {issue.description ? <Text>{issue.description}</Text> : null}
-            {img.data ? <Image source={{ uri: img.data }} style={{ width: '100%', height: 240, borderRadius: radius.md }} resizeMode="cover" /> : null}
+            {issue.image_path ? (
+              img.data ? <Image source={{ uri: img.data }} onError={() => setImgFailed(true)} style={{ width: '100%', height: 240, borderRadius: radius.md }} resizeMode="cover" />
+              : img.isError || imgFailed ? <Text muted>לא ניתן לטעון את התמונה{img.error ? `: ${(img.error as Error).message}` : ''}</Text>
+              : <ActivityIndicator color={colors.primary} />
+            ) : null}
             <View style={{ gap: spacing.sm }}>
               <Text variant="label" muted>סטטוס</Text>
               <View style={{ flexDirection: 'row', gap: spacing.sm }}>

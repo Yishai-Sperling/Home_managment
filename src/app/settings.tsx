@@ -32,6 +32,8 @@ function Section({ title, delay = 0, children }: { title: string; delay?: number
   );
 }
 
+export { ErrorBoundary } from 'expo-router';
+
 export default function SettingsScreen() {
   const pad = useScreenPadding();
   const { colors } = useTheme();
