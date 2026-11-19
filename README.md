@@ -20,3 +20,24 @@ npm run typecheck && npm run lint && npm test
 
 ## הרצה מהירה ב-Windows
 לחיצה כפולה על `run.bat`: מעדכן מ-GitHub, מתקין חבילות אם צריך ומפעיל את Expo.
+
+## הפצה למכשירים נוספים (אנדרואיד)
+בונים קובץ APK בענן של Expo, ושולחים לכל אחד קישור להתקנה. פעם אחת:
+```bash
+npx eas-cli login
+```
+```bash
+npx eas-cli init
+```
+משתני הסביבה (קובץ `.env` לא עולה ל-GitHub, ולכן מגדירים אותם גם ב-EAS):
+```bash
+npx eas-cli env:create --name EXPO_PUBLIC_SUPABASE_URL --value "https://xxxx.supabase.co" --environment preview --visibility plaintext
+```
+```bash
+npx eas-cli env:create --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "eyJ..." --environment preview --visibility plaintext
+```
+בנייה:
+```bash
+npx eas-cli build -p android --profile preview
+```
+בסיום מתקבל קישור להורדה. בטלפון מאשרים "התקנה ממקורות לא ידועים".
