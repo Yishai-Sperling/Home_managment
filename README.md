@@ -41,3 +41,14 @@ npx eas-cli env:create --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "eyJ..." --e
 npx eas-cli build -p android --profile preview
 ```
 בסיום מתקבל קישור להורדה. בטלפון מאשרים "התקנה ממקורות לא ידועים".
+
+## עדכונים בלי התקנה מחדש (EAS Update)
+חד-פעמי: `npx eas-cli update:configure` (מקשר את הפרויקט ומוסיף `updates.url` ל-`app.json`), ואז בנייה חדשה והתקנה של ה-APK:
+```bash
+npx eas-cli build -p android --profile preview
+```
+אחרי כל שינוי בקוד (שאינו חבילה נייטיבית חדשה), שולחים עדכון לכל המכשירים:
+```bash
+npx eas-cli update --channel preview --message "תיאור השינוי"
+```
+האפליקציה מורידה את העדכון בפתיחה, ומחילה אותו בפתיחה הבאה. הוספת חבילה נייטיבית או שינוי ב-`app.json` דורשים בנייה חדשה.
