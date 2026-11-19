@@ -8,7 +8,7 @@
 3. למיילים: חשבון Resend, וכן הפעלת `notify-house` והגדרת ה-webhooks (ראה `supabase/README.md`).
 4. הרצה:
 ```bash
-npm install --legacy-peer-deps
+npm install
 npx expo start
 ```
 סרוק את ה-QR עם Expo Go באנדרואיד או ב-iPhone.
