@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { router, useRootNavigationState } from 'expo-router';
+import { router, usePathname, useRootNavigationState } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { useSession } from '@/lib/session';
 import { configureNotificationHandler, registerForPush } from './registerPush';
@@ -18,6 +18,9 @@ export function usePushRegistration(enabled: boolean) {
   const navReady = !!useRootNavigationState()?.key;
   const lastResponse = Notifications.useLastNotificationResponse();
   const handled = useRef<string | null>(null);
+  const pathname = usePathname();
+  const pathRef = useRef(pathname);
+  useEffect(() => { pathRef.current = pathname; }, [pathname]);
 
   useEffect(() => {
     if (enabled && userId) registerForPush(userId);
@@ -36,7 +39,8 @@ export function usePushRegistration(enabled: boolean) {
     const t = setTimeout(() => {
       handled.current = id;
       try {
-        router.push(route as never);
+        // +native-intent כבר ניווט למסך הזה בדרך כלל; לא מוסיפים עותק נוסף למחסנית
+        if (pathRef.current !== route) router.push(route as never);
       } catch {
         // אם הניווט נכשל, האפליקציה פשוט נשארת במסך הבית
       }
