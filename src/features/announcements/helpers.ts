@@ -1,4 +1,4 @@
-import type { Announcement } from '@/types/database';
+import type { Announcement, AnnouncementType, Priority } from '@/types/database';
 
 /** חדש קודם. */
 export function sortAnnouncements(list: Announcement[]): Announcement[] {
@@ -7,6 +7,33 @@ export function sortAnnouncements(list: Announcement[]): Announcement[] {
 
 export function canDeleteAnnouncement(a: Announcement, userId: string | undefined, isAdmin: boolean) {
   return !!userId && (isAdmin || a.created_by === userId);
+}
+
+/** עריכה: אותן הרשאות כמו מחיקה (יוצר המודעה או מנהל). */
+export const canEditAnnouncement = canDeleteAnnouncement;
+
+export interface AnnouncementForm {
+  title: string;
+  body: string;
+  type: AnnouncementType;
+  priority: Priority;
+  /** טקסט חופשי בפורמט YYYY-MM-DD (או ריק) */
+  dateText: string;
+}
+
+export const emptyAnnouncementForm: AnnouncementForm = { title: '', body: '', type: 'general', priority: 'normal', dateText: '' };
+
+/** ממלא את טופס העריכה ממודעה קיימת. */
+export function announcementToForm(a: Announcement): AnnouncementForm {
+  return { title: a.title, body: a.body ?? '', type: a.type, priority: a.priority, dateText: a.event_date ? a.event_date.slice(0, 10) : '' };
+}
+
+/** הופך טופס לשדות לשמירה; null אם הטופס לא תקין. */
+export function formToAnnouncementFields(f: AnnouncementForm) {
+  const title = f.title.trim();
+  const eventDate = f.dateText.trim() === '' ? null : parseEventDate(f.dateText);
+  if (!title || (f.dateText.trim() !== '' && !eventDate)) return null;
+  return { title, body: f.body.trim() || null, type: f.type, priority: f.priority, event_date: eventDate };
 }
 
 /** מקבל YYYY-MM-DD ומחזיר אותו אם תקין, אחרת null. */

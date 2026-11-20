@@ -107,6 +107,11 @@ function usePatchIssue<V extends { id: string }>(patchOf: (v: V) => Partial<Issu
 export const useUpdateIssueStatus = () =>
   usePatchIssue<{ id: string; status: IssueStatus }>((v) => ({ status: v.status }));
 
+export const useUpdateIssue = () =>
+  usePatchIssue<{ id: string; title: string; description: string | null; category: IssueCategory; urgency: IssueUrgency }>(
+    ({ id: _id, ...fields }) => fields,
+  );
+
 export const useAssignIssue = () =>
   usePatchIssue<{ id: string; assignee_id: string | null }>((v) => ({ assignee_id: v.assignee_id }));
 

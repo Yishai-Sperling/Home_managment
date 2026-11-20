@@ -5,13 +5,17 @@ import Animated from 'react-native-reanimated';
 import { useListMotion } from '@/theme/motion';
 import { uuid } from '@/lib/uuid';
 import * as Haptics from 'expo-haptics';
+import { Avatar } from '@/components/Avatar';
 import { Button, Card, Chip, EmptyState, Input, Screen, Text, useScreenPadding } from '@/components/ui';
 import { radius, spacing, useTheme } from '@/theme';
 import { announcementTypeLabels, priorityLabels } from '@/lib/labels';
 import { useSession } from '@/lib/session';
 import type { Announcement, AnnouncementType, Priority } from '@/types/database';
-import { useAddAnnouncement, useAnnouncements, useDeleteAnnouncement, useIsAdmin } from './hooks';
-import { canDeleteAnnouncement, formatEventDate, parseEventDate, shiftDate, todayISO } from './helpers';
+import { useAddAnnouncement, useAnnouncements, useDeleteAnnouncement, useIsAdmin, useMemberNames, useUpdateAnnouncement } from './hooks';
+import {
+  announcementToForm, canDeleteAnnouncement, canEditAnnouncement, emptyAnnouncementForm, formatEventDate,
+  formToAnnouncementFields, parseEventDate, shiftDate, todayISO, type AnnouncementForm as AnnouncementFormState,
+} from './helpers';
 
 const types = Object.keys(announcementTypeLabels) as AnnouncementType[];
 const priorities: Priority[] = ['low', 'normal', 'high'];
@@ -25,7 +29,9 @@ export default function AnnouncementsScreen() {
   const { data, isLoading, refetch, isRefetching } = useAnnouncements();
   const motion = useListMotion(!isLoading);
   const del = useDeleteAnnouncement();
+  const names = useMemberNames();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Announcement | null>(null);
 
   const confirmDelete = (a: Announcement) =>
     Alert.alert('מחיקת מודעה', `למחוק את "${a.title}"?`, [
@@ -68,6 +74,11 @@ export default function AnnouncementsScreen() {
                     </View>
                   ) : null}
                   <View style={{ flex: 1 }} />
+                  {canEditAnnouncement(a, session?.user.id, isAdmin) ? (
+                    <Pressable hitSlop={10} accessibilityLabel="ערוך" onPress={() => setEditing(a)}>
+                      <Text style={{ color: colors.primary, fontWeight: '600' }}>ערוך</Text>
+                    </Pressable>
+                  ) : null}
                   {canDeleteAnnouncement(a, session?.user.id, isAdmin) ? (
                     <Pressable hitSlop={10} accessibilityLabel="מחק" onPress={() => confirmDelete(a)}>
                       <Text style={{ color: colors.danger, fontWeight: '600' }}>מחק</Text>
@@ -79,43 +90,61 @@ export default function AnnouncementsScreen() {
                 {a.event_date ? (
                   <Text variant="label" style={{ color: colors.primary }}>📅 {formatEventDate(a.event_date)}</Text>
                 ) : null}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                  <Avatar name={names.get(a.created_by)} id={a.created_by} size={22} />
+                  <Text variant="small" muted>{names.get(a.created_by) ?? 'דייר'}</Text>
+                </View>
               </Card>
             </Animated.View>
           );
         }}
       />
-      <AddModal visible={open} onClose={() => setOpen(false)} />
+      <FormModal visible={open} onClose={() => setOpen(false)} />
+      <FormModal visible={!!editing} editing={editing} onClose={() => setEditing(null)} />
     </Screen>
   );
 }
 
-function AddModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+function FormModal({ visible, onClose, editing }: { visible: boolean; onClose: () => void; editing?: Announcement | null }) {
+  const { colors } = useTheme();
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: colors.bg }}>
+        {visible ? <AnnouncementForm key={editing?.id ?? 'new'} editing={editing} onClose={onClose} /> : null}
+      </View>
+    </Modal>
+  );
+}
+
+function AnnouncementForm({ onClose, editing }: { onClose: () => void; editing?: Announcement | null }) {
   const { colors } = useTheme();
   const add = useAddAnnouncement();
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
-  const [type, setType] = useState<AnnouncementType>('general');
-  const [priority, setPriority] = useState<Priority>('normal');
-  const [dateText, setDateText] = useState('');
+  const update = useUpdateAnnouncement();
+  const [form, setForm] = useState<AnnouncementFormState>(() => (editing ? announcementToForm(editing) : emptyAnnouncementForm));
+  const { title, body, type, priority, dateText } = form;
+  const setTitle = (v: string) => setForm((f) => ({ ...f, title: v }));
+  const setBody = (v: string) => setForm((f) => ({ ...f, body: v }));
+  const setType = (v: AnnouncementType) => setForm((f) => ({ ...f, type: v }));
+  const setPriority = (v: Priority) => setForm((f) => ({ ...f, priority: v }));
+  const setDateText = (v: string) => setForm((f) => ({ ...f, dateText: v }));
 
   const parsed = parseEventDate(dateText);
   const dateInvalid = dateText.trim() !== '' && !parsed;
   const canSave = title.trim().length > 0 && !dateInvalid;
 
-  const reset = () => { setTitle(''); setBody(''); setType('general'); setPriority('normal'); setDateText(''); };
   const save = () => {
-    add.mutate({ id: uuid(), title: title.trim(), body: body.trim() || null, type, priority, event_date: parsed });
+    const fields = formToAnnouncementFields(form);
+    if (!fields) return;
+    if (editing) update.mutate({ id: editing.id, ...fields });
+    else add.mutate({ id: uuid(), ...fields });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    reset();
     onClose();
   };
   const step = (days: number) => setDateText(shiftDate(parsed ?? todayISO(), days));
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: colors.bg }}>
         <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }} keyboardShouldPersistTaps="handled">
-          <Text variant="title">מודעה חדשה</Text>
+          <Text variant="title">{editing ? 'עריכת מודעה' : 'מודעה חדשה'}</Text>
           <Input label="כותרת" value={title} onChangeText={setTitle} placeholder="על מה המודעה?" />
           <Input label="תוכן" value={body} onChangeText={setBody} multiline style={{ minHeight: 90, textAlignVertical: 'top' }} />
           <View style={{ gap: spacing.sm }}>
@@ -141,11 +170,9 @@ function AddModal({ visible, onClose }: { visible: boolean; onClose: () => void 
             {dateInvalid ? <Text variant="small" style={{ color: colors.danger }}>תאריך לא תקין, יש להזין בפורמט YYYY-MM-DD</Text> : null}
           </View>
           <View style={{ flexDirection: 'row', gap: spacing.md }}>
-            <Button title="פרסם" onPress={save} disabled={!canSave} style={{ flex: 1 }} />
+            <Button title={editing ? 'שמור' : 'פרסם'} onPress={save} disabled={!canSave} style={{ flex: 1 }} />
             <Button title="ביטול" variant="secondary" onPress={onClose} style={{ flex: 1 }} />
           </View>
         </ScrollView>
-      </View>
-    </Modal>
   );
 }

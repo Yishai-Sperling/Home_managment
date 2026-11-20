@@ -6,15 +6,18 @@ import { useListMotion } from '@/theme/motion';
 import { uuid } from '@/lib/uuid';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
+import { Avatar } from '@/components/Avatar';
+import { useSession } from '@/lib/session';
+import { useIsAdmin } from '@/features/announcements/hooks';
 import { Button, Card, Chip, EmptyState, Input, Screen, Text, useScreenPadding } from '@/components/ui';
 import { radius, spacing, useTheme, type Colors } from '@/theme';
 import { issueCategoryLabels, issueStatusLabels, issueUrgencyLabels } from '@/lib/labels';
 import type { Issue, IssueCategory, IssueStatus, IssueUrgency } from '@/types/database';
 import {
   memberName, useAssignIssue, useDeleteIssue, useIssueHouseMembers, useIssueImageUrl, useIssues,
-  useReportIssue, useUpdateIssueStatus,
+  useReportIssue, useUpdateIssue, useUpdateIssueStatus,
 } from './hooks';
-import type { IssueFilter } from './helpers';
+import { canEditIssue, formToIssueFields, issueToForm, memberNameMap, type IssueFilter, type IssueForm } from './helpers';
 
 const categories = Object.keys(issueCategoryLabels) as IssueCategory[];
 const urgencies: IssueUrgency[] = ['low', 'normal', 'urgent'];
@@ -45,7 +48,10 @@ export default function IssuesScreen() {
   const members = useIssueHouseMembers().data ?? [];
   const [reporting, setReporting] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const names = memberNameMap(members);
   const selected = data?.find((i) => i.id === selectedId) ?? null;
+  const editing = data?.find((i) => i.id === editingId) ?? null;
 
   return (
     <Screen style={pad}>
@@ -79,7 +85,9 @@ export default function IssuesScreen() {
                   </View>
                   <Text variant="heading">{i.title}</Text>
                   {i.description ? <Text muted numberOfLines={2}>{i.description}</Text> : null}
-                  <View style={{ flexDirection: 'row', gap: spacing.md }}>
+                  <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center' }}>
+                    <Avatar name={names.get(i.created_by)} id={i.created_by} size={22} />
+                    {assignee ? <Avatar name={memberName(assignee)} id={assignee.user_id} size={22} /> : null}
                     {assignee ? <Text variant="small" muted>👤 {memberName(assignee)}</Text> : null}
                     {i.image_path ? <Text variant="small" muted>📷 תמונה</Text> : null}
                   </View>
@@ -90,7 +98,8 @@ export default function IssuesScreen() {
         }}
       />
       <ReportModal visible={reporting} onClose={() => setReporting(false)} />
-      <DetailModal issue={selected} onClose={() => setSelectedId(null)} />
+      <DetailModal issue={selected} onClose={() => setSelectedId(null)} onEdit={() => { setEditingId(selectedId); setSelectedId(null); }} />
+      <EditModal issue={editing} onClose={() => setEditingId(null)} />
     </Screen>
   );
 }
@@ -178,9 +187,48 @@ function ChipRow<T extends string>({ label, items, labels, value, onChange }:
   );
 }
 
-function DetailModal({ issue, onClose }: { issue: Issue | null; onClose: () => void }) {
+function EditModal({ issue, onClose }: { issue: Issue | null; onClose: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <Modal visible={!!issue} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: colors.bg }}>
+        {issue ? <EditForm key={issue.id} issue={issue} onClose={onClose} /> : null}
+      </View>
+    </Modal>
+  );
+}
+
+function EditForm({ issue, onClose }: { issue: Issue; onClose: () => void }) {
+  const update = useUpdateIssue();
+  const [form, setForm] = useState<IssueForm>(() => issueToForm(issue));
+  const fields = formToIssueFields(form);
+  const save = () => {
+    if (!fields) return;
+    update.mutate({ id: issue.id, ...fields }, { onError: () => Alert.alert('שמירת השינויים נכשלה') });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    onClose();
+  };
+  return (
+    <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }} keyboardShouldPersistTaps="handled">
+      <Text variant="title">עריכת תקלה</Text>
+      <Input label="כותרת" value={form.title} onChangeText={(v) => setForm({ ...form, title: v })} />
+      <Input label="תיאור" value={form.description} onChangeText={(v) => setForm({ ...form, description: v })} multiline style={{ minHeight: 90, textAlignVertical: 'top' }} />
+      <ChipRow label="קטגוריה" items={categories} labels={issueCategoryLabels} value={form.category} onChange={(v) => setForm({ ...form, category: v })} />
+      <ChipRow label="דחיפות" items={urgencies} labels={issueUrgencyLabels} value={form.urgency} onChange={(v) => setForm({ ...form, urgency: v })} />
+      <View style={{ flexDirection: 'row', gap: spacing.md }}>
+        <Button title="שמור" onPress={save} disabled={!fields} style={{ flex: 1 }} />
+        <Button title="ביטול" variant="secondary" onPress={onClose} style={{ flex: 1 }} />
+      </View>
+    </ScrollView>
+  );
+}
+
+function DetailModal({ issue, onClose, onEdit }: { issue: Issue | null; onClose: () => void; onEdit: () => void }) {
+  const { session } = useSession();
+  const isAdmin = useIsAdmin();
   const { colors } = useTheme();
   const members = useIssueHouseMembers().data ?? [];
+  const names = memberNameMap(members);
   const setStatus = useUpdateIssueStatus();
   const assign = useAssignIssue();
   const del = useDeleteIssue();
@@ -205,6 +253,16 @@ function DetailModal({ issue, onClose }: { issue: Issue | null; onClose: () => v
               <Badge label={issueCategoryLabels[issue.category]} colors={[colors.primarySoft, colors.primary]} />
             </View>
             <Text variant="title">{issue.title}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <Avatar name={names.get(issue.created_by)} id={issue.created_by} size={24} />
+              <Text variant="small" muted>דווח על ידי {names.get(issue.created_by) ?? 'דייר'}</Text>
+            </View>
+            {issue.assignee_id ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                <Avatar name={names.get(issue.assignee_id)} id={issue.assignee_id} size={24} />
+                <Text variant="small" muted>באחריות {names.get(issue.assignee_id) ?? 'דייר'}</Text>
+              </View>
+            ) : null}
             {issue.description ? <Text>{issue.description}</Text> : null}
             {issue.image_path ? (
               img.data ? <Image source={{ uri: img.data }} onError={() => setImgFailed(true)} style={{ width: '100%', height: 240, borderRadius: radius.md }} resizeMode="cover" />
@@ -230,6 +288,7 @@ function DetailModal({ issue, onClose }: { issue: Issue | null; onClose: () => v
                 ))}
               </View>
             </View>
+            {canEditIssue(issue, session?.user.id, isAdmin) ? <Button title="ערוך" variant="secondary" onPress={onEdit} /> : null}
             <Button title="מחק תקלה" variant="danger" onPress={confirmDelete} />
             <Button title="סגור" variant="secondary" onPress={onClose} />
           </ScrollView>

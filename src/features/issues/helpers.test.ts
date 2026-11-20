@@ -1,5 +1,5 @@
 import { expect, test } from '@jest/globals';
-import { filterIssues, issueImagePath, sortIssues } from './helpers';
+import { canEditIssue, filterIssues, formToIssueFields, issueImagePath, issueToForm, memberNameMap, sortIssues } from './helpers';
 import type { Issue } from '@/types/database';
 
 const i = (id: string, status: Issue['status'], urgency: Issue['urgency'], created_at: string): Issue => ({
@@ -18,4 +18,23 @@ test('sorts open first, urgent first, newest first', () => {
 test('image path', () => {
   expect(issueImagePath('house', 'abc')).toBe('house/abc.jpg');
   expect(issueImagePath('house')).toMatch(/^house\/[0-9a-f-]{36}\.jpg$/);
+});
+
+test('canEditIssue: creator or admin', () => {
+  const x = i('1', 'open', 'low', 'a');
+  expect(canEditIssue(x, 'u', false)).toBe(true);
+  expect(canEditIssue(x, 'other', false)).toBe(false);
+  expect(canEditIssue(x, 'other', true)).toBe(true);
+  expect(canEditIssue(x, undefined, true)).toBe(false);
+});
+test('issue form round trip and validation', () => {
+  const x = i('1', 'open', 'low', 'a');
+  expect(issueToForm(x).description).toBe('');
+  expect(formToIssueFields({ ...issueToForm(x), title: '  new ', description: ' ' })).toEqual({ title: 'new', description: null, category: 'general', urgency: 'low' });
+  expect(formToIssueFields({ ...issueToForm(x), title: ' ' })).toBeNull();
+});
+test('memberNameMap', () => {
+  const m = memberNameMap([{ user_id: 'a', profile: { id: 'a', full_name: 'דנה', phone: null } }, { user_id: 'b' }]);
+  expect(m.get('a')).toBe('דנה');
+  expect(m.get('b')).toBe('דייר');
 });
