@@ -1,8 +1,11 @@
+import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRealtimeInvalidate } from '@/lib/realtime';
 import { supabase } from '@/lib/supabase';
 import { useCurrentHouseId, useSession } from '@/lib/session';
 import type { Announcement, AnnouncementType, Priority } from '@/types/database';
+import { useIssueHouseMembers } from '@/features/issues/hooks';
+import { memberNameMap } from '@/features/issues/helpers';
 import { sortAnnouncements } from './helpers';
 
 const key = (houseId: string | null) => ['announcements', houseId] as const;
@@ -60,6 +63,34 @@ export function useAddAnnouncement() {
   });
 }
 
+export interface AnnouncementPatch {
+  id: string;
+  title: string;
+  body: string | null;
+  type: AnnouncementType;
+  priority: Priority;
+  event_date: string | null;
+}
+
+export function useUpdateAnnouncement() {
+  const houseId = useCurrentHouseId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...fields }: AnnouncementPatch) => {
+      const { error } = await supabase.from('announcements').update(fields).eq('id', id);
+      if (error) throw error;
+    },
+    onMutate: async (v) => {
+      await qc.cancelQueries({ queryKey: key(houseId) });
+      const prev = qc.getQueryData<Announcement[]>(key(houseId));
+      qc.setQueryData<Announcement[]>(key(houseId), (old) => (old ?? []).map((a) => (a.id === v.id ? { ...a, ...v } : a)));
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => qc.setQueryData(key(houseId), ctx?.prev),
+    onSettled: () => qc.invalidateQueries({ queryKey: key(houseId) }),
+  });
+}
+
 export function useDeleteAnnouncement() {
   const houseId = useCurrentHouseId();
   const qc = useQueryClient();
@@ -95,4 +126,10 @@ export function useIsAdmin() {
     },
   });
   return q.data ?? false;
+}
+
+/** מפה user_id -> שם, לאווטארים. משתמש בשאילתת חברי הבית של פיצ'ר התקלות (מטמון משותף). */
+export function useMemberNames(): Map<string, string> {
+  const { data } = useIssueHouseMembers();
+  return useMemo(() => memberNameMap(data ?? []), [data]);
 }
