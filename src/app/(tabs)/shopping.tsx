@@ -167,7 +167,7 @@ export default function ShoppingScreen() {
             : <EmptyState title="הרשימה ריקה" hint="הוסיפו את הפריט הראשון למעלה" />
         }
         renderItem={({ item: row }) => row.type === 'header' ? (
-          <Text variant="label" muted style={{ marginTop: spacing.sm, textAlign: 'left' }}>{shoppingCategoryLabels[row.category]}</Text>
+          <Text variant="label" muted style={{ marginTop: spacing.sm }}>{shoppingCategoryLabels[row.category]}</Text>
         ) : (
           <ItemRow
             motion={motion}

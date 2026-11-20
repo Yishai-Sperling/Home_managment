@@ -1,9 +1,10 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRealtimeInvalidate } from '@/lib/realtime';
 import { supabase } from '@/lib/supabase';
 import { useCurrentHouseId, useSession } from '@/lib/session';
 import type { ShoppingCategory, ShoppingItem, ShoppingStatus } from '@/types/database';
-import type { HistoryRow } from './helpers';
+import { mergeHistory, type HistoryRow } from './helpers';
 
 export type ShoppingFilter = 'all' | ShoppingStatus;
 
@@ -115,6 +116,8 @@ export function useClearBought() {
 }
 
 /** היסטוריית פריטים (300 אחרונים, כולל שנקנו) להצעות שמות. מפתח נפרד כדי שמחיקה אופטימית של הרשימה לא תשפיע עליו. */
+const historyKey = (houseId: string) => `shopping-history:${houseId}`;
+
 export function useShoppingHistory(houseId: string | null) {
   useRealtimeInvalidate('shopping_items', houseId, ['shopping-history', houseId]);
   return useQuery({
@@ -126,7 +129,16 @@ export function useShoppingHistory(houseId: string | null) {
         .select('name, category, status, created_at').eq('house_id', houseId!)
         .order('created_at', { ascending: false }).limit(300);
       if (error) throw error;
-      return data as HistoryRow[];
+      const server = data as HistoryRow[];
+      let stored: HistoryRow[] = [];
+      try {
+        const raw = await AsyncStorage.getItem(historyKey(houseId!));
+        if (raw) stored = (JSON.parse(raw) as HistoryRow[]).map((r) => ({ ...r, status: 'bought' as const }));
+      } catch { /* אין עותק שמור */ }
+      // פריטים שנמחקו מהשרת נשארים רק כהיסטוריה (status bought), כך שלא ייחשבו ממתינים
+      const merged = mergeHistory(server, stored);
+      try { await AsyncStorage.setItem(historyKey(houseId!), JSON.stringify(merged)); } catch { /* לא קריטי */ }
+      return merged;
     },
   });
 }

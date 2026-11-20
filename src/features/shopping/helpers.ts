@@ -57,3 +57,18 @@ export function groupByCategory(items: ShoppingItem[]): ShoppingRow[] {
 export function flatRows(items: ShoppingItem[]): ShoppingRow[] {
   return items.map((item) => ({ type: 'item' as const, key: item.id, item }));
 }
+
+/** ממזג את ההיסטוריה מהשרת עם עותק שמור במכשיר, כך שהצעות נשמרות גם אחרי "נקה את מה שנקנה". */
+export function mergeHistory(server: HistoryRow[], stored: HistoryRow[], max = 300): HistoryRow[] {
+  const seen = new Set<string>();
+  const out: HistoryRow[] = [];
+  for (const r of [...server, ...stored].sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0))) {
+    const k = `${r.name.trim().toLocaleLowerCase()}|${r.created_at}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(r);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+

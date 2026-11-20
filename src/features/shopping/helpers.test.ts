@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { groupByCategory, suggestNames, type HistoryRow } from './helpers';
+import { groupByCategory, mergeHistory, suggestNames, type HistoryRow } from './helpers';
 import type { ShoppingItem } from '@/types/database';
 
 const h = (name: string, created_at: string, status: 'pending' | 'bought' = 'bought', category: HistoryRow['category'] = 'groceries'): HistoryRow =>
@@ -37,5 +37,20 @@ describe('groupByCategory', () => {
   });
   it('returns empty for no items', () => {
     expect(groupByCategory([])).toEqual([]);
+  });
+});
+
+describe('mergeHistory', () => {
+  const row = (name: string, created_at: string, status: HistoryRow['status'] = 'bought'): HistoryRow => ({ name, category: 'groceries', status, created_at });
+  it('keeps stored rows that no longer exist on the server and removes duplicates', () => {
+    const server = [row('חלב', '2026-11-02', 'pending')];
+    const stored = [row('חלב', '2026-11-02'), row('לחם', '2026-11-01')];
+    const merged = mergeHistory(server, stored);
+    expect(merged.map((r) => r.name)).toEqual(['חלב', 'לחם']);
+    expect(merged[0].status).toBe('pending');
+  });
+  it('caps the list size, newest first', () => {
+    const many = Array.from({ length: 10 }, (_, i) => row(`p${i}`, `2026-11-${String(10 + i)}`));
+    expect(mergeHistory(many, [], 3).map((r) => r.name)).toEqual(['p9', 'p8', 'p7']);
   });
 });
