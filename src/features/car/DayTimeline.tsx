@@ -1,5 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Pressable, ScrollView, View, type ScrollViewInstance } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Avatar } from '@/components/Avatar';
 import { Text } from '@/components/ui';
 import { radius, spacing, useTheme } from '@/theme';
 import type { CarReservation } from '@/types/database';
@@ -76,9 +78,13 @@ export function DayTimeline({ day, now, reservations, draft, uid, nameOf, scroll
                 backgroundColor: mine ? colors.primary : colors.warningSoft, borderRadius: radius.md,
                 borderWidth: mine ? 0 : 1, borderColor: colors.warning, paddingHorizontal: spacing.md, paddingVertical: 4, overflow: 'hidden',
               }}>
-              <Text variant="label" numberOfLines={1} style={{ color: mine ? colors.primaryText : colors.text }}>
-                {nameOf(r.user_id)}{r.purpose ? ` · ${r.purpose}` : ''}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                <Avatar id={r.user_id} name={nameOf(r.user_id)} size={16} />
+                <Text variant="label" numberOfLines={1} style={{ flex: 1, color: mine ? colors.primaryText : colors.text }}>
+                  {nameOf(r.user_id)}{r.purpose ? ` · ${r.purpose}` : ''}
+                </Text>
+                {r.recurring_rule_id ? <Ionicons name="repeat" size={14} color={mine ? colors.primaryText : colors.textMuted} /> : null}
+              </View>
               {rect.height >= 44 ? (
                 <Text variant="small" style={{ color: mine ? colors.primaryText : colors.textMuted }}>{hh(r.starts_at)}–{hh(r.ends_at)}</Text>
               ) : null}
