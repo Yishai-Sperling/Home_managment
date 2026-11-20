@@ -3,6 +3,7 @@ import { useRealtimeInvalidate } from '@/lib/realtime';
 import { supabase } from '@/lib/supabase';
 import { useCurrentHouseId, useSession } from '@/lib/session';
 import type { ShoppingCategory, ShoppingItem, ShoppingStatus } from '@/types/database';
+import type { HistoryRow } from './helpers';
 
 export type ShoppingFilter = 'all' | ShoppingStatus;
 
@@ -81,6 +82,72 @@ export function useToggleBought() {
       if (error) throw error;
     },
     ...opt,
+  });
+}
+
+export interface ItemPatch { id: string; name: string; quantity: string | null; category: ShoppingCategory }
+
+export function useUpdateItem() {
+  const opt = useOptimistic<ItemPatch>((items, p) =>
+    items.map((x) => (x.id === p.id ? { ...x, name: p.name, quantity: p.quantity, category: p.category } : x)));
+  return useMutation({
+    mutationFn: async (p: ItemPatch) => {
+      const { error } = await supabase.from('shopping_items')
+        .update({ name: p.name, quantity: p.quantity, category: p.category }).eq('id', p.id);
+      if (error) throw error;
+    },
+    ...opt,
+  });
+}
+
+/** מוחק את כל הפריטים שנקנו בבית (שאילתה אחת). */
+export function useClearBought() {
+  const houseId = useCurrentHouseId();
+  const opt = useOptimistic<void>((items) => items.filter((x) => x.status !== 'bought'));
+  return useMutation({
+    mutationFn: async () => {
+      if (!houseId) throw new Error('אין בית פעיל');
+      const { error } = await supabase.from('shopping_items').delete().eq('house_id', houseId).eq('status', 'bought');
+      if (error) throw error;
+    },
+    ...opt,
+  });
+}
+
+/** היסטוריית פריטים (300 אחרונים, כולל שנקנו) להצעות שמות. מפתח נפרד כדי שמחיקה אופטימית של הרשימה לא תשפיע עליו. */
+export function useShoppingHistory(houseId: string | null) {
+  useRealtimeInvalidate('shopping_items', houseId, ['shopping-history', houseId]);
+  return useQuery({
+    queryKey: ['shopping-history', houseId],
+    enabled: !!houseId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('shopping_items')
+        .select('name, category, status, created_at').eq('house_id', houseId!)
+        .order('created_at', { ascending: false }).limit(300);
+      if (error) throw error;
+      return data as HistoryRow[];
+    },
+  });
+}
+
+/** מפה userId -> שם מלא לחברי הבית. */
+export function useMemberNames(houseId: string | null) {
+  return useQuery({
+    queryKey: ['shopping-members', houseId],
+    enabled: !!houseId,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data: members, error } = await supabase.from('house_members').select('user_id').eq('house_id', houseId!);
+      if (error) throw error;
+      const ids = (members ?? []).map((m) => m.user_id as string);
+      const names: Record<string, string> = {};
+      if (ids.length) {
+        const { data: profiles } = await supabase.from('profiles').select('id, full_name').in('id', ids);
+        (profiles ?? []).forEach((p) => { if (p.full_name) names[p.id as string] = p.full_name as string; });
+      }
+      return names;
+    },
   });
 }
 
