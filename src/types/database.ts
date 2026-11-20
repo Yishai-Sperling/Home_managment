@@ -2,11 +2,22 @@
 
 export type Role = 'admin' | 'member';
 
+/** העדפות התראות Push לפי סוג (שדה profiles.notify_prefs). חסר/true = מקבלים. */
+export interface NotifyPrefs {
+  shopping: boolean;
+  car: boolean;
+  announcements: boolean;
+  issues: boolean;
+}
+
+export const DEFAULT_NOTIFY_PREFS: NotifyPrefs = { shopping: true, car: true, announcements: true, issues: true };
+
 export interface Profile {
   id: string;
   full_name: string | null;
   phone: string | null;
   current_house_id: string | null;
+  notify_prefs: NotifyPrefs | null;
   created_at: string;
 }
 
@@ -48,6 +59,27 @@ export interface CarReservation {
   ends_at: string;
   purpose: string | null;
   notes: string | null;
+  /** אם השריון נוצר מסדרה חוזרת: מזהה הסדרה והתאריך (YYYY-MM-DD) של המופע */
+  recurring_rule_id: string | null;
+  occurrence_date: string | null;
+  created_at: string;
+}
+
+/** סדרת שריון חוזר (למשל כל יום א׳–ה׳ 09:00–15:30). המופעים נוצרים כשורות ב-car_reservations. */
+export interface CarRecurringRule {
+  id: string;
+  house_id: string;
+  user_id: string;
+  /** ימי השבוע בסגנון JS: 0=ראשון … 6=שבת */
+  days: number[];
+  /** שעות מקומיות בפורמט HH:MM:SS (בלי חצייה של חצות) */
+  start_time: string;
+  end_time: string;
+  tz: string;
+  purpose: string | null;
+  /** YYYY-MM-DD */
+  starts_on: string;
+  ends_on: string | null;
   created_at: string;
 }
 
