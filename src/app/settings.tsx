@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, Share, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, Share, Switch, View } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,9 +7,12 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Button, Card, Input, Screen, Text, useScreenPadding } from '@/components/ui';
 import { roleLabels } from '@/lib/labels';
 import { unregisterPush } from '@/features/notifications/registerPush';
+import { NOTIFY_PREF_LABELS, useNotifyPrefs } from '@/features/notifications/prefs';
+import { Avatar } from '@/components/Avatar';
 import { supabase } from '@/lib/supabase';
 import { useProfile, useSession } from '@/lib/session';
-import { useCurrentHouse, useHouseMembers, useLeaveHouse, useRemoveMember, useUpdateProfile } from '@/features/house/hooks';
+import { useCurrentHouse, useHouseMembers, useHouses, useLeaveHouse, useRemoveMember, useUpdateProfile } from '@/features/house/hooks';
+import { houseAdminErrorMessage, useDeleteHouse, useSetMemberRole } from '@/features/house/admin';
 import { radius, spacing, useTheme } from '@/theme';
 
 async function copyText(text: string): Promise<boolean> {
@@ -45,6 +48,12 @@ export default function SettingsScreen() {
   const updateProfile = useUpdateProfile();
   const removeMember = useRemoveMember();
   const leave = useLeaveHouse();
+  const houses = useHouses();
+  const setRole = useSetMemberRole(house?.id ?? null);
+  const deleteHouse = useDeleteHouse();
+  const { prefs, setPref, isError: prefsError } = useNotifyPrefs();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteText, setDeleteText] = useState('');
 
   // טיוטה: null = עדיין לא נערך, מציגים את הערך מהפרופיל
   const [nameDraft, setName] = useState<string | null>(null);
@@ -90,6 +99,35 @@ export default function SettingsScreen() {
     Alert.alert('הסרת דייר', `להסיר את ${label} מהבית?`, [
       { text: 'ביטול', style: 'cancel' },
       { text: 'הסר', style: 'destructive', onPress: () => removeMember.mutate(userId, { onError: () => Alert.alert('שגיאה', 'ההסרה נכשלה') }) },
+    ]);
+  }
+
+  function changeRole(userId: string, label: string, role: 'admin' | 'member', isMe: boolean) {
+    const run = () => setRole.mutate({ userId, role }, {
+      onSuccess: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}),
+      onError: (e) => Alert.alert('שגיאה', houseAdminErrorMessage(e, 'עדכון התפקיד נכשל')),
+    });
+    const msg = role === 'admin' ? `למנות את ${label} למנהל?` : isMe ? 'להסיר את תפקיד המנהל שלך?' : `להסיר את תפקיד המנהל של ${label}?`;
+    Alert.alert('שינוי תפקיד', msg, [
+      { text: 'ביטול', style: 'cancel' },
+      { text: 'אישור', style: role === 'member' ? 'destructive' : 'default', onPress: run },
+    ]);
+  }
+
+  function confirmDeleteHouse() {
+    if (!house) return;
+    Alert.alert('מחיקת הבית', `הבית "${house.name}" וכל הנתונים שבו יימחקו לצמיתות לכל הדיירים. להמשיך?`, [
+      { text: 'ביטול', style: 'cancel' },
+      {
+        text: 'מחק לצמיתות', style: 'destructive',
+        onPress: () => {
+          const next = houses.data?.find((h) => h.id !== house.id)?.id ?? null;
+          deleteHouse.mutate({ houseId: house.id, nextHouseId: next }, {
+            onSuccess: () => { setDeleteOpen(false); setDeleteText(''); router.replace('/'); },
+            onError: (e) => Alert.alert('שגיאה', houseAdminErrorMessage(e, 'מחיקת הבית נכשלה')),
+          });
+        },
+      },
     ]);
   }
 
@@ -152,13 +190,24 @@ export default function SettingsScreen() {
               const label = m.profile?.full_name || 'דייר ללא שם';
               return (
                 <View key={m.user_id} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderTopWidth: i ? 1 : 0, borderColor: colors.border }}>
-                  <View style={{ width: 40, height: 40, borderRadius: radius.pill, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ color: colors.primary, fontWeight: '700', textAlign: 'center' }}>{label.charAt(0)}</Text>
-                  </View>
+                  <Avatar name={label} id={m.user_id} size={40} />
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontWeight: '600' }}>{label}{isMe ? ' (אני)' : ''}</Text>
                     <Text variant="small" muted>{roleLabels[m.role]}{m.profile?.phone ? ` · ${m.profile.phone}` : ''}</Text>
                   </View>
+                  {m.role === 'admin' ? (
+                    <View style={{ backgroundColor: colors.primarySoft, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 2 }}>
+                      <Text variant="small" style={{ color: colors.primary, fontWeight: '700' }}>מנהל</Text>
+                    </View>
+                  ) : null}
+                  {isAdmin ? (
+                    <Pressable
+                      onPress={() => changeRole(m.user_id, label, m.role === 'admin' ? 'member' : 'admin', isMe)}
+                      accessibilityLabel={m.role === 'admin' ? `הסר הרשאת מנהל מ${label}` : `מנה את ${label} למנהל`}
+                      hitSlop={8}>
+                      <Ionicons name={m.role === 'admin' ? 'shield-outline' : 'shield-checkmark-outline'} size={22} color={colors.primary} />
+                    </Pressable>
+                  ) : null}
                   {isAdmin && !isMe ? (
                     <Pressable onPress={() => confirmRemove(m.user_id, label)} accessibilityLabel={`הסר את ${label}`} hitSlop={8}>
                       <Ionicons name="person-remove-outline" size={22} color={colors.danger} />
@@ -171,10 +220,46 @@ export default function SettingsScreen() {
           </Card>
         </Section>
 
+        <Section title="התראות" delay={200}>
+          <Card style={{ padding: 0 }}>
+            {NOTIFY_PREF_LABELS.map(({ key, label }, i) => (
+              <View key={key} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.md, borderTopWidth: i ? 1 : 0, borderColor: colors.border }}>
+                <Text style={{ fontWeight: '600' }}>{label}</Text>
+                <Switch
+                  value={prefs[key]}
+                  onValueChange={(v) => { Haptics.selectionAsync().catch(() => {}); setPref(key, v); }}
+                  trackColor={{ true: colors.primary }}
+                  accessibilityLabel={`התראות ${label}`}
+                />
+              </View>
+            ))}
+          </Card>
+          {prefsError ? <Text variant="small" style={{ color: colors.danger }}>שמירת ההעדפות נכשלה, נסו שוב</Text> : null}
+        </Section>
+
         <Animated.View entering={FadeInDown.delay(240).duration(350)} style={{ gap: spacing.sm }}>
           {house ? <Button title="עזיבת הבית" variant="danger" onPress={confirmLeave} loading={leave.isPending} /> : null}
           <Button title="התנתקות" variant="secondary" onPress={confirmSignOut} />
         </Animated.View>
+
+        {house && isAdmin ? (
+          <Section title="אזור מסוכן" delay={300}>
+            <Card style={{ gap: spacing.md, borderColor: colors.danger }}>
+              <Text variant="small" muted>מחיקת הבית תסיר אותו ואת כל הנתונים שלו (קניות, רכב, מודעות, תקלות) מכל הדיירים. אי אפשר לשחזר.</Text>
+              {deleteOpen ? (
+                <>
+                  <Input label={`להמשך, הקלידו את שם הבית: ${house.name}`} value={deleteText} onChangeText={setDeleteText} autoCorrect={false} />
+                  <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                    <Button title="ביטול" variant="secondary" onPress={() => { setDeleteOpen(false); setDeleteText(''); }} style={{ flex: 1 }} />
+                    <Button title="מחק את הבית" variant="danger" onPress={confirmDeleteHouse} disabled={deleteText.trim() !== house.name.trim()} loading={deleteHouse.isPending} style={{ flex: 1 }} />
+                  </View>
+                </>
+              ) : (
+                <Button title="מחיקת הבית" variant="danger" onPress={() => setDeleteOpen(true)} />
+              )}
+            </Card>
+          </Section>
+        ) : null}
       </ScrollView>
     </Screen>
   );
