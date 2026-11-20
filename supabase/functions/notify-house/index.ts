@@ -8,7 +8,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-type Table = "shopping_items" | "car_reservations" | "announcements" | "issues";
+type Table = "shopping_items" | "car_reservations" | "car_recurring_rules" | "announcements" | "issues";
 
 interface WebhookPayload {
   type: "INSERT" | "UPDATE" | "DELETE";
@@ -21,9 +21,44 @@ interface WebhookPayload {
 const ACTOR_COLUMN: Record<Table, string> = {
   shopping_items: "added_by",
   car_reservations: "user_id",
+  car_recurring_rules: "user_id",
   announcements: "created_by",
   issues: "created_by",
 };
+
+// מפתח ב-profiles.notify_prefs לכל טבלה (חסר = מקבלים)
+const PREF_KEY: Record<Table, string> = {
+  shopping_items: "shopping",
+  car_reservations: "car",
+  car_recurring_rules: "car",
+  announcements: "announcements",
+  issues: "issues",
+};
+
+const WEEKDAY_LETTERS = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
+
+// [0,1,2,3,4] -> "א׳–ה׳"; [0,2,3,6] -> "א׳, ג׳–ד׳, ש׳"
+function fmtDays(days: unknown): string {
+  const ds = [...new Set((Array.isArray(days) ? days : []).map(Number).filter((d) => d >= 0 && d <= 6))]
+    .sort((a, b) => a - b);
+  const parts: string[] = [];
+  for (let i = 0; i < ds.length;) {
+    let j = i;
+    while (j + 1 < ds.length && ds[j + 1] === ds[j] + 1) j++;
+    if (j > i) parts.push(`${WEEKDAY_LETTERS[ds[i]]}–${WEEKDAY_LETTERS[ds[j]]}`);
+    else for (let k = i; k <= j; k++) parts.push(WEEKDAY_LETTERS[ds[k]]);
+    i = j + 1;
+  }
+  return parts.join(", ");
+}
+
+function fmtTime(v: unknown): string {
+  return String(v ?? "").slice(0, 5);
+}
+
+function fmtRecurring(r: Record<string, unknown>): string {
+  return `${fmtDays(r.days)} · ${fmtTime(r.start_time)}–${fmtTime(r.end_time)}`;
+}
 
 const SHOPPING_CATEGORY: Record<string, string> = {
   groceries: "מצרכים", cleaning: "ניקיון", pharmacy: "פארמה", other: "אחר",
@@ -92,6 +127,13 @@ function buildMessage(
         rows: row("מתאריך", fmtDate(r.starts_at)) + row("עד", fmtDate(r.ends_at)) +
           row("מטרה", r.purpose) + row("הערות", r.notes),
       };
+    case "car_recurring_rules":
+      return {
+        subject: `${house}: ${actor} שריינ/ה את הרכב בקביעות`,
+        headline: `${actor} שריינ/ה את הרכב בקביעות`,
+        rows: row("ימים", fmtDays(r.days)) + row("שעות", `${fmtTime(r.start_time)}–${fmtTime(r.end_time)}`) +
+          row("מטרה", r.purpose) + row("עד תאריך", r.ends_on),
+      };
     case "announcements":
       return {
         subject: `${house}: הודעה חדשה - ${r.title ?? ""}`,
@@ -122,6 +164,8 @@ function buildPush(
       return { body: `${actor} הוסיף/ה לקניות: ${r.name ?? ""}${r.quantity ? ` (${r.quantity})` : ""}`, screen: "shopping" };
     case "car_reservations":
       return { body: `${actor} שריינ/ה את הרכב: ${fmtDate(r.starts_at)} עד ${fmtDate(r.ends_at)}`, screen: "car" };
+    case "car_recurring_rules":
+      return { body: `${actor} שריינ/ה את הרכב בקביעות: ${fmtRecurring(r)}`, screen: "car" };
     case "announcements":
       return { body: `${actor} פרסם/ה מודעה: ${r.title ?? ""}`, screen: "announcements" };
     case "issues":
@@ -220,7 +264,17 @@ Deno.serve(async (req) => {
   ]);
   if (mErr) return json({ error: mErr.message }, 500);
 
-  const recipientIds = (members ?? []).map((m) => m.user_id as string).filter((id) => id !== actorId);
+  let recipientIds = (members ?? []).map((m) => m.user_id as string).filter((id) => id !== actorId);
+  if (recipientIds.length > 0) {
+    // העדפות התראות: מדלגים רק על מי שכיבה במפורש (false); חסר = מקבל
+    const { data: prefRows } = await supabase.from("profiles").select("id, notify_prefs").in("id", recipientIds);
+    const off = new Set(
+      (prefRows ?? [])
+        .filter((p) => (p.notify_prefs as Record<string, unknown> | null)?.[PREF_KEY[table]] === false)
+        .map((p) => p.id as string),
+    );
+    recipientIds = recipientIds.filter((id) => !off.has(id));
+  }
   if (recipientIds.length === 0) return json({ push: 0, email: 0 });
 
   const houseName = house?.name ?? "הבית";

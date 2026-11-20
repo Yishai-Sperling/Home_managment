@@ -71,3 +71,9 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls.sql
 3. **סוד:** ב-Edge Functions ← Secrets הוסף `WEBHOOK_SECRET` (מחרוזת אקראית ארוכה שאתה ממציא). מיילים אופציונליים: `RESEND_API_KEY` ו-`MAIL_FROM`. בלעדיהם נשלחות רק התראות Push.
 4. **Webhooks:** ב-Database ← Webhooks צור ארבעה, אחד לכל טבלה (`shopping_items`, `car_reservations`, `announcements`, `issues`), אירוע Insert בלבד, סוג Supabase Edge Functions ← `notify-house`, עם הכותרת `x-webhook-secret` בערך של `WEBHOOK_SECRET`. (חלופה: `migrations/0005_webhooks.sql` אחרי החלפת הערכים.)
 5. **אפליקציה:** נדרשת בנייה חדשה עם Firebase (FCM), ראה README הראשי.
+
+## עדכון: שריון חוזר, העדפות התראות והגנת מנהל אחרון
+1. **SQL Editor:** הריצו את `migrations/0007_features.sql` (ואז, אחרי שהצליח, את `migrations/0008_webhooks_v2.sql`). בלי שום עריכה — 0008 מעתיק את כתובת ה-Webhook והסוד מהטריגר הקיים `notify_house_webhook` שעל `shopping_items`. אם הוא לא קיים תודפס הודעה והשלב ידולג (אז צרו Webhook ידנית ל-`car_recurring_rules`, אירוע Insert). שניהם בטוחים להרצה חוזרת.
+2. **הפונקציה:** ב-Dashboard ← Edge Functions ← `notify-house` ← Code, הדביקו את התוכן החדש של `functions/notify-house/index.ts` ופרסו מחדש (Verify JWT נשאר כבוי).
+3. **מה חדש:** שריון חוזר (טבלת `car_recurring_rules`, כתיבה רק דרך RPC: `create_recurring_rule`, `update_recurring_rule`, `delete_recurring_rule`, `skip_occurrence`, `materialize_recurring`), העדפות התראה לפי סוג (`profiles.notify_prefs`), וחסימת הסרה/הורדת דרגה של המנהל האחרון בבית שיש בו חברים נוספים (שגיאה `last_admin`).
+4. **בדיקות:** `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/features.sql` (אחרי 0001–0004, 0006, 0007; מסתיים ב-`ALL FEATURE TESTS PASSED`).
