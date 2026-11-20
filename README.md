@@ -49,6 +49,6 @@ npx eas-cli build -p android --profile preview
 ```
 אחרי כל שינוי בקוד (שאינו חבילה נייטיבית חדשה), שולחים עדכון לכל המכשירים:
 ```bash
-npx eas-cli update --channel preview --message "תיאור השינוי"
+npx eas-cli update --channel preview --platform android --environment preview --message "תיאור השינוי"
 ```
 האפליקציה מורידה את העדכון בפתיחה, ומחילה אותו בפתיחה הבאה. הוספת חבילה נייטיבית או שינוי ב-`app.json` דורשים בנייה חדשה.
