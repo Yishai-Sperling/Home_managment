@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Button, Card, Input, Screen, Text, useScreenPadding } from '@/components/ui';
 import { roleLabels } from '@/lib/labels';
+import { unregisterPush } from '@/features/notifications/registerPush';
 import { supabase } from '@/lib/supabase';
 import { useProfile, useSession } from '@/lib/session';
 import { useCurrentHouse, useHouseMembers, useLeaveHouse, useRemoveMember, useUpdateProfile } from '@/features/house/hooks';
@@ -108,7 +109,7 @@ export default function SettingsScreen() {
   function confirmSignOut() {
     Alert.alert('התנתקות', 'להתנתק מהחשבון?', [
       { text: 'ביטול', style: 'cancel' },
-      { text: 'התנתק', style: 'destructive', onPress: () => supabase.auth.signOut() },
+      { text: 'התנתק', style: 'destructive', onPress: async () => { await unregisterPush(); await supabase.auth.signOut(); } },
     ]);
   }
 

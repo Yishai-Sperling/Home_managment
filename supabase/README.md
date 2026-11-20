@@ -64,3 +64,10 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls.sql
 - נתיב תמונת תקלה: `<house_id>/<uuid>.jpg` (דלי `issue-images`, גישה דרך signed URL).
 - ברשימת הקניות כל חבר בית יכול לעדכן פריט (סימון "נקנה"); בשאר הטבלאות רק היוצר או המנהל (בתקלות גם האחראי המשויך).
 - אם המנהל האחרון עוזב, הבית נשאר בלי מנהל — מומלץ להעביר ניהול לפני עזיבה.
+
+## התראות Push (מומלץ)
+1. **מיגרציה:** ב-SQL Editor הרץ את `migrations/0006_push_tokens.sql`.
+2. **הפונקציה:** ב-Dashboard ← Edge Functions ← Deploy a new function ← Via Editor, בשם `notify-house`; הדבק את התוכן של `functions/notify-house/index.ts`. **כבה** את Verify JWT (ה-Webhook מאומת בכותרת סודית).
+3. **סוד:** ב-Edge Functions ← Secrets הוסף `WEBHOOK_SECRET` (מחרוזת אקראית ארוכה שאתה ממציא). מיילים אופציונליים: `RESEND_API_KEY` ו-`MAIL_FROM`. בלעדיהם נשלחות רק התראות Push.
+4. **Webhooks:** ב-Database ← Webhooks צור ארבעה, אחד לכל טבלה (`shopping_items`, `car_reservations`, `announcements`, `issues`), אירוע Insert בלבד, סוג Supabase Edge Functions ← `notify-house`, עם הכותרת `x-webhook-secret` בערך של `WEBHOOK_SECRET`. (חלופה: `migrations/0005_webhooks.sql` אחרי החלפת הערכים.)
+5. **אפליקציה:** נדרשת בנייה חדשה עם Firebase (FCM), ראה README הראשי.

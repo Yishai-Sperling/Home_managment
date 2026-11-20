@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import { Screen } from '@/components/ui';
 import { useProfile, useSession } from '@/lib/session';
 import { useTheme } from '@/theme';
+import { usePushRegistration } from '@/features/notifications/usePushRegistration';
 
 /**
  * שער הניווט: אין session → (auth); יש session אך אין בית נוכחי → onboarding; אחרת → (tabs).
@@ -15,6 +16,7 @@ export function RootGate() {
   const profile = useProfile();
   const { colors } = useTheme();
   const waiting = loading || (!!session && profile.isLoading);
+  usePushRegistration(!!session && !!profile.data?.current_house_id);
 
   if (waiting) {
     return (

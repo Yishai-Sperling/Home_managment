@@ -1,8 +1,9 @@
 // notify-house — Supabase Edge Function (Deno)
-// מקבלת Database Webhook (INSERT בלבד) ושולחת מייל HTML בעברית (RTL) דרך Resend
-// לכל חברי הבית מלבד מי שביצע את הפעולה.
+// מקבלת Database Webhook (INSERT בלבד) ושולחת לכל חברי הבית מלבד מי שביצע את הפעולה:
+//  - התראת Push דרך Expo Push (תמיד, לפי הטבלה push_tokens)
+//  - מייל HTML בעברית (RTL) דרך Resend (רק אם הוגדרו RESEND_API_KEY ו-MAIL_FROM)
 //
-// Secrets: RESEND_API_KEY, MAIL_FROM, WEBHOOK_SECRET
+// Secrets: WEBHOOK_SECRET (חובה), RESEND_API_KEY ו-MAIL_FROM (אופציונליים)
 // (SUPABASE_URL ו-SUPABASE_SERVICE_ROLE_KEY מוזרקים אוטומטית)
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -111,6 +112,56 @@ function buildMessage(
   }
 }
 
+function buildPush(
+  table: Table,
+  r: Record<string, unknown>,
+  actor: string,
+): { body: string; screen: string } {
+  switch (table) {
+    case "shopping_items":
+      return { body: `${actor} הוסיף/ה לקניות: ${r.name ?? ""}${r.quantity ? ` (${r.quantity})` : ""}`, screen: "shopping" };
+    case "car_reservations":
+      return { body: `${actor} שריינ/ה את הרכב: ${fmtDate(r.starts_at)} עד ${fmtDate(r.ends_at)}`, screen: "car" };
+    case "announcements":
+      return { body: `${actor} פרסם/ה מודעה: ${r.title ?? ""}`, screen: "announcements" };
+    case "issues":
+      return { body: `${actor} דיווח/ה על תקלה: ${r.title ?? ""}`, screen: "issues" };
+  }
+}
+
+async function sendPush(
+  supabase: ReturnType<typeof createClient>,
+  tokens: string[],
+  title: string,
+  body: string,
+  screen: string,
+): Promise<{ sent: number; removed: number }> {
+  let sent = 0;
+  const dead: string[] = [];
+  for (let i = 0; i < tokens.length; i += 100) {
+    const batch = tokens.slice(i, i + 100);
+    const res = await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(batch.map((to) => ({
+        to, title, body, sound: "default", channelId: "default", priority: "high", data: { screen },
+      }))),
+    });
+    if (!res.ok) {
+      console.error(`expo push ${res.status}: ${await res.text()}`);
+      continue;
+    }
+    const { data } = await res.json() as { data: { status: string; details?: { error?: string } }[] };
+    data.forEach((t, idx) => {
+      if (t.status === "ok") sent++;
+      else if (t.details?.error === "DeviceNotRegistered") dead.push(batch[idx]);
+      else console.error("expo push ticket error", JSON.stringify(t));
+    });
+  }
+  if (dead.length) await supabase.from("push_tokens").delete().in("token", dead);
+  return { sent, removed: dead.length };
+}
+
 function renderHtml(house: string, headline: string, rows: string): string {
   return `<!doctype html>
 <html lang="he" dir="rtl">
@@ -156,10 +207,6 @@ Deno.serve(async (req) => {
   const actorId = String(record[ACTOR_COLUMN[table]] ?? "");
   if (!houseId) return json({ skipped: "no_house" });
 
-  const resendKey = Deno.env.get("RESEND_API_KEY");
-  const from = Deno.env.get("MAIL_FROM");
-  if (!resendKey || !from) return json({ error: "mail_not_configured" }, 500);
-
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -174,31 +221,49 @@ Deno.serve(async (req) => {
   if (mErr) return json({ error: mErr.message }, 500);
 
   const recipientIds = (members ?? []).map((m) => m.user_id as string).filter((id) => id !== actorId);
-  const emails = (await Promise.all(
-    recipientIds.map(async (id) => {
-      const { data } = await supabase.auth.admin.getUserById(id);
-      return data?.user?.email ?? null;
-    }),
-  )).filter((e): e is string => !!e);
-
-  if (emails.length === 0) return json({ sent: 0 });
+  if (recipientIds.length === 0) return json({ push: 0, email: 0 });
 
   const houseName = house?.name ?? "הבית";
   const actorName = actorProfile?.full_name?.trim() || "דייר";
-  const { subject, headline, rows } = buildMessage(table, record, actorName, houseName);
-  const html = renderHtml(houseName, headline, rows);
 
-  // מייל נפרד לכל נמען, כדי לא לחשוף כתובות זה לזה
-  const results = await Promise.allSettled(emails.map(async (to) => {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to: [to], subject, html }),
-    });
-    if (!res.ok) throw new Error(`resend ${res.status}: ${await res.text()}`);
-  }));
+  // --- Push (תמיד) ---
+  const { data: tokenRows } = await supabase.from("push_tokens").select("token").in("user_id", recipientIds);
+  const tokens = (tokenRows ?? []).map((t) => t.token as string);
+  const push = buildPush(table, record, actorName);
+  const pushResult = tokens.length
+    ? await sendPush(supabase, tokens, houseName, push.body, push.screen)
+    : { sent: 0, removed: 0 };
 
-  const failed = results.filter((r) => r.status === "rejected");
-  failed.forEach((f) => console.error((f as PromiseRejectedResult).reason));
-  return json({ sent: results.length - failed.length, failed: failed.length });
+  // --- מייל (רק אם הוגדר Resend) ---
+  let emailSent = 0;
+  let emailFailed = 0;
+  const resendKey = Deno.env.get("RESEND_API_KEY");
+  const from = Deno.env.get("MAIL_FROM");
+  if (resendKey && from) {
+    const emails = (await Promise.all(
+      recipientIds.map(async (id) => {
+        const { data } = await supabase.auth.admin.getUserById(id);
+        return data?.user?.email ?? null;
+      }),
+    )).filter((e): e is string => !!e);
+
+    const { subject, headline, rows } = buildMessage(table, record, actorName, houseName);
+    const html = renderHtml(houseName, headline, rows);
+
+    // מייל נפרד לכל נמען, כדי לא לחשוף כתובות זה לזה
+    const results = await Promise.allSettled(emails.map(async (to) => {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ from, to: [to], subject, html }),
+      });
+      if (!res.ok) throw new Error(`resend ${res.status}: ${await res.text()}`);
+    }));
+    const failed = results.filter((r) => r.status === "rejected");
+    failed.forEach((f) => console.error((f as PromiseRejectedResult).reason));
+    emailSent = results.length - failed.length;
+    emailFailed = failed.length;
+  }
+
+  return json({ push: pushResult.sent, pushRemoved: pushResult.removed, email: emailSent, emailFailed });
 });

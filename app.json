@@ -34,7 +34,13 @@
     "plugins": [
       "expo-router",
       "expo-image-picker",
-      "expo-updates"
+      "expo-updates",
+      [
+        "expo-notifications",
+        {
+          "color": "#4F46E5"
+        }
+      ]
     ],
     "extra": {},
     "runtimeVersion": {
