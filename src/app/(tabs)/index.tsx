@@ -14,6 +14,7 @@ import { currentReservation, reservationsToday } from '@/features/car/overlap';
 import { useAnnouncements } from '@/features/announcements/hooks';
 import { useIssues } from '@/features/issues/hooks';
 import { buildActivity, relativeDayLabel, relativeTime, upcomingEvents, urgentOpenIssues, type ActivityKind } from '@/features/dashboard/summary';
+import { WhoIsHomeCard } from '@/features/presence/WhoIsHomeCard';
 import { spacing, useTheme } from '@/theme';
 
 type Icon = React.ComponentProps<typeof Ionicons>['name'];
@@ -82,6 +83,8 @@ export default function DashboardScreen() {
         contentContainerStyle={{ gap: spacing.lg, paddingBottom: spacing.xxl * 2 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
         <Text variant="title">{firstName ? `שלום, ${firstName}` : 'שלום'}</Text>
+
+        <WhoIsHomeCard />
 
         <View style={{ flexDirection: 'row', gap: spacing.md }}>
           <Stat icon="cart" tint={colors.primary} value={shopping.data?.length ?? 0} label="פריטים לקנייה" onPress={() => router.push('/shopping')} />
@@ -160,6 +163,17 @@ export default function DashboardScreen() {
             ))}
           </Card>
         </View>
+
+        <Pressable onPress={() => router.push('/info')} style={{ alignSelf: 'stretch' }}>
+          <Card style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+            <Ionicons name="information-circle" size={22} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text variant="label">מידע על הבית</Text>
+              <Text variant="small" muted>וויי-פיי, טלפונים, קודים</Text>
+            </View>
+            <Ionicons name="chevron-back" size={18} color={colors.textMuted} />
+          </Card>
+        </Pressable>
 
         <Pressable onPress={() => router.push('/settings')} style={{ alignSelf: 'stretch' }}>
           <Card style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
