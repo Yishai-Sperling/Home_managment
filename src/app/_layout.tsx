@@ -6,7 +6,6 @@ import { focusManager } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { StaleBanner } from '@/features/offline/StaleBanner';
 import { CACHE_BUSTER, CACHE_MAX_AGE_MS, shouldPersistQuery } from '@/lib/cachePolicy';
 import { persister, queryClient } from '@/lib/queryClient';
 import { ensureRTL } from '@/lib/rtl';
@@ -38,7 +37,6 @@ export default function RootLayout() {
           <SessionProvider>
             <StatusBar style="auto" />
             <RootGate />
-            <StaleBanner />
           </SessionProvider>
         </PersistQueryClientProvider>
       </SafeAreaProvider>

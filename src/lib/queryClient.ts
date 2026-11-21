@@ -5,7 +5,7 @@ import { CACHE_MAX_AGE_MS } from '@/lib/cachePolicy';
 
 // gcTime חייב להיות לפחות maxAge של המטמון השמור, אחרת הנתונים נמחקים מהזיכרון לפני שנשמרו
 export const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 15_000, gcTime: CACHE_MAX_AGE_MS } },
+  defaultOptions: { queries: { staleTime: 15_000, gcTime: CACHE_MAX_AGE_MS, retry: 2, retryDelay: (n) => Math.min(1000 * 2 ** n, 4000) } },
 });
 
 export const persister = createAsyncStoragePersister({

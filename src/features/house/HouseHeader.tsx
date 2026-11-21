@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '@/components/ui';
+import { StaleBadge } from '@/features/offline/StaleBadge';
 import { radius, spacing, useTheme } from '@/theme';
 import { useCurrentHouse, useHouses, useSwitchHouse } from './hooks';
 
@@ -52,6 +53,7 @@ export function HouseHeader({ title }: { title?: string }) {
         </View>
         {title ? <Text variant="title">{title}</Text> : null}
       </Pressable>
+      <StaleBadge />
       <IconButton name="people" label="דיירים והגדרות" onPress={() => router.push('/settings')} />
 
       <Modal visible={open} transparent animationType="none" onRequestClose={() => setOpen(false)} statusBarTranslucent>
