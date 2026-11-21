@@ -276,7 +276,8 @@ export default function SettingsScreen() {
               </View>
             ))}
           </Card>
-          {prefsError ? <Text variant="small" style={{ color: colors.danger }}>שמירת ההעדפות נכשלה, נסו שוב</Text> : null}
+          <Text variant="small" muted>תזכורות לפני שריון הרכב שלך ולפני אירועים</Text>
+          {prefsError ?<Text variant="small" style={{ color: colors.danger }}>שמירת ההעדפות נכשלה, נסו שוב</Text> : null}
         </Section>
 
         <Animated.View entering={FadeInDown.delay(240).duration(350)} style={{ gap: spacing.sm }}>
