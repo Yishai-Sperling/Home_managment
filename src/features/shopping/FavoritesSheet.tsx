@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Chip, Input, Text } from '@/components/ui';
 import { shoppingCategoryLabels } from '@/lib/labels';
@@ -25,6 +25,7 @@ interface Props {
 /** גיליון ניהול קניות קבועות, overlay בתוך המסך (לא Modal). */
 export function FavoritesSheet({ favorites, initialEditId, error, onClose, onAdd, onUpdate, onDelete }: Props) {
   const { colors } = useTheme();
+  const { height: windowHeight } = useWindowDimensions();
   const sorted = useMemo(() => sortFavorites(favorites), [favorites]);
   const initial = initialEditId ? favorites.find((f) => f.id === initialEditId) : undefined;
   const [editingId, setEditingId] = useState<string | null>(initial?.id ?? null);
@@ -61,10 +62,10 @@ export function FavoritesSheet({ favorites, initialEditId, error, onClose, onAdd
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={{
           backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg,
-          padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl, maxHeight: '90%',
+          padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl, maxHeight: windowHeight * 0.9,
         }}>
           <Text variant="heading">ניהול קניות קבועות</Text>
-          <ScrollView style={{ maxHeight: 220 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: spacing.sm }}>
+          <ScrollView style={{ flexGrow: 0, flexShrink: 0, maxHeight: 220 }} nestedScrollEnabled keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: spacing.sm }}>
             {sorted.length === 0 ? (
               <Text muted>אין עדיין פריטים קבועים. הוסיפו למטה.</Text>
             ) : sorted.map((f) => (
@@ -91,7 +92,7 @@ export function FavoritesSheet({ favorites, initialEditId, error, onClose, onAdd
           <Text variant="label" muted>{editingId ? 'עריכת פריט קבוע' : 'הוספת פריט קבוע'}</Text>
           <Input placeholder="שם" value={name} onChangeText={(t) => { setName(t); setLocalError(null); }} onSubmitEditing={save} returnKeyType="done" />
           <Input placeholder="כמות (אופציונלי)" value={quantity} onChangeText={setQuantity} onSubmitEditing={save} />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: spacing.sm }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ flexGrow: 0, flexShrink: 0 }} contentContainerStyle={{ gap: spacing.sm }}>
             {categories.map((c) => (
               <Chip key={c} label={shoppingCategoryLabels[c]} selected={category === c} onPress={() => setCategory(c)} />
             ))}

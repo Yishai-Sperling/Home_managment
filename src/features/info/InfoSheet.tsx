@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Switch, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Switch, View, useWindowDimensions } from 'react-native';
 import { Button, Chip, Input, Text } from '@/components/ui';
 import { radius, spacing, useTheme } from '@/theme';
 import { KIND_LABELS, KIND_ORDER, LABEL_MAX, VALUE_MAX, validateInfo, type InfoForm } from './helpers';
@@ -9,6 +9,7 @@ export function InfoSheet({ title, initial, onClose, onSave }: {
   title: string; initial: InfoForm; onClose: () => void; onSave: (f: InfoForm) => void;
 }) {
   const { colors } = useTheme();
+  const { height: windowHeight } = useWindowDimensions();
   const [form, setForm] = useState<InfoForm>(initial);
   const [submitted, setSubmitted] = useState(false);
   const errors = validateInfo(form);
@@ -25,7 +26,7 @@ export function InfoSheet({ title, initial, onClose, onSave }: {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={{
           backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg,
-          padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl, maxHeight: '90%',
+          padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl, maxHeight: windowHeight * 0.9,
         }}>
           <Text variant="heading">{title}</Text>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: spacing.md }}>
@@ -44,7 +45,7 @@ export function InfoSheet({ title, initial, onClose, onSave }: {
             </View>
             <View style={{ gap: spacing.xs }}>
               <Text variant="label" muted>סוג</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: spacing.sm }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ flexGrow: 0, flexShrink: 0 }} contentContainerStyle={{ gap: spacing.sm }}>
                 {KIND_ORDER.map((k) => (
                   <Chip key={k} label={KIND_LABELS[k]} selected={form.kind === k} onPress={() => set('kind', k)} />
                 ))}
