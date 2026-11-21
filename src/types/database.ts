@@ -18,6 +18,8 @@ export interface Profile {
   phone: string | null;
   current_house_id: string | null;
   notify_prefs: NotifyPrefs | null;
+  /** צבע מברשת השיניים (#RRGGBB), או null אם לא נבחר */
+  toothbrush_color: string | null;
   created_at: string;
 }
 
@@ -35,7 +37,7 @@ export interface HouseMember {
   user_id: string;
   role: Role;
   joined_at: string;
-  profile?: Pick<Profile, 'id' | 'full_name' | 'phone'>;
+  profile?: Pick<Profile, 'id' | 'full_name' | 'phone'> & { toothbrush_color?: string | null };
 }
 
 export type ShoppingCategory = 'groceries' | 'cleaning' | 'pharmacy' | 'other';

@@ -9,6 +9,7 @@ import { roleLabels } from '@/lib/labels';
 import { unregisterPush } from '@/features/notifications/registerPush';
 import { NOTIFY_PREF_LABELS, useNotifyPrefs } from '@/features/notifications/prefs';
 import { Avatar } from '@/components/Avatar';
+import { ToothbrushIcon, ToothbrushPicker, brushColorName, isBrushColor, takenByOthers, useSetToothbrushColor } from '@/features/house/toothbrush';
 import { supabase } from '@/lib/supabase';
 import { useProfile, useSession } from '@/lib/session';
 import { useCurrentHouse, useHouseMembers, useHouses, useLeaveHouse, useRemoveMember, useUpdateProfile } from '@/features/house/hooks';
@@ -45,6 +46,9 @@ export default function SettingsScreen() {
   const profile = useProfile().data;
   const { house, isAdmin } = useCurrentHouse();
   const members = useHouseMembers();
+  const setBrush = useSetToothbrushColor();
+  const myBrush = members.data?.find((m) => m.user_id === session?.user.id)?.profile?.toothbrush_color ?? null;
+  const takenBrush = takenByOthers(members.data ?? [], session?.user.id);
   const updateProfile = useUpdateProfile();
   const removeMember = useRemoveMember();
   const leave = useLeaveHouse();
@@ -170,6 +174,23 @@ export default function SettingsScreen() {
           </Card>
         </Section>
 
+        <Section title="מברשת השיניים שלי" delay={40}>
+          <Card style={{ gap: spacing.md }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+              {isBrushColor(myBrush) ? <ToothbrushIcon color={myBrush} size={30} /> : null}
+              <Text variant="small" muted style={{ flex: 1 }}>
+                {isBrushColor(myBrush) ? `הצבע שלך: ${brushColorName(myBrush)}. לחיצה על הצבע שנבחר מנקה אותו.` : 'בחר צבע, כדי שכולם בבית ידעו איזו מברשת שלך.'}
+              </Text>
+            </View>
+            <ToothbrushPicker
+              value={myBrush}
+              taken={takenBrush}
+              disabled={setBrush.isPending}
+              onChange={(hex) => setBrush.mutate(hex, { onError: () => Alert.alert('שגיאה', 'לא הצלחנו לשמור את הצבע, נסו שוב') })}
+            />
+          </Card>
+        </Section>
+
         {house ? (
           <Section title={`הבית: ${house.name}`} delay={80}>
             <Card style={{ gap: spacing.md, alignItems: 'stretch' }}>
@@ -192,7 +213,10 @@ export default function SettingsScreen() {
                 <View key={m.user_id} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderTopWidth: i ? 1 : 0, borderColor: colors.border }}>
                   <Avatar name={label} id={m.user_id} size={40} />
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontWeight: '600' }}>{label}{isMe ? ' (אני)' : ''}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                      <Text style={{ fontWeight: '600' }}>{label}{isMe ? ' (אני)' : ''}</Text>
+                      {isBrushColor(m.profile?.toothbrush_color) ? <ToothbrushIcon color={m.profile!.toothbrush_color!} size={18} /> : null}
+                    </View>
                     <Text variant="small" muted>{roleLabels[m.role]}{m.profile?.phone ? ` · ${m.profile.phone}` : ''}</Text>
                   </View>
                   {m.role === 'admin' ? (

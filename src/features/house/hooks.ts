@@ -54,7 +54,7 @@ export function useSwitchHouse() {
   });
 }
 
-export type MemberWithProfile = HouseMember & { profile?: Pick<Profile, 'id' | 'full_name' | 'phone'> };
+export type MemberWithProfile = HouseMember & { profile?: Pick<Profile, 'id' | 'full_name' | 'phone'> & { toothbrush_color?: string | null } };
 
 export function useHouseMembers() {
   const houseId = useCurrentHouseId();
@@ -67,9 +67,9 @@ export function useHouseMembers() {
       const members = (data ?? []) as HouseMember[];
       const ids = members.map((m) => m.user_id);
       const { data: profs } = ids.length
-        ? await supabase.from('profiles').select('id, full_name, phone').in('id', ids)
+        ? await supabase.from('profiles').select('*').in('id', ids)
         : { data: [] };
-      const byId = new Map(((profs ?? []) as Pick<Profile, 'id' | 'full_name' | 'phone'>[]).map((p) => [p.id, p]));
+      const byId = new Map(((profs ?? []) as (Pick<Profile, 'id' | 'full_name' | 'phone'> & { toothbrush_color?: string | null })[]).map((p) => [p.id, p]));
       return members.map((m) => ({ ...m, profile: byId.get(m.user_id) }));
     },
   });
