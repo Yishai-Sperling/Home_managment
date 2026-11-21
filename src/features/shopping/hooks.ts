@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRealtimeInvalidate } from '@/lib/realtime';
 import { supabase } from '@/lib/supabase';
 import { useCurrentHouseId, useSession } from '@/lib/session';
-import type { ShoppingCategory, ShoppingItem, ShoppingStatus } from '@/types/database';
+import type { ShoppingCategory, ShoppingFavorite, ShoppingItem, ShoppingStatus } from '@/types/database';
 import { mergeHistory, type HistoryRow } from './helpers';
 
 export type ShoppingFilter = 'all' | ShoppingStatus;
@@ -160,6 +160,93 @@ export function useMemberNames(houseId: string | null) {
       }
       return names;
     },
+  });
+}
+
+// ---------- קניות קבועות ----------
+
+const favKey = (houseId: string | null) => ['shopping-favorites', houseId] as const;
+
+export function useFavorites(houseId: string | null) {
+  useRealtimeInvalidate('shopping_favorites', houseId, favKey(houseId));
+  return useQuery({
+    queryKey: favKey(houseId),
+    enabled: !!houseId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('shopping_favorites').select('*').eq('house_id', houseId!);
+      if (error) throw error;
+      return data as ShoppingFavorite[];
+    },
+  });
+}
+
+function useOptimisticFav<V>(patch: (favs: ShoppingFavorite[], v: V) => ShoppingFavorite[]) {
+  const qc = useQueryClient();
+  const houseId = useCurrentHouseId();
+  const key = favKey(houseId);
+  return {
+    async onMutate(v: V) {
+      await qc.cancelQueries({ queryKey: key });
+      const prev = qc.getQueryData<ShoppingFavorite[]>(key);
+      qc.setQueryData<ShoppingFavorite[]>(key, (old) => (old ? patch(old, v) : old));
+      return { prev };
+    },
+    onError(_e: unknown, _v: V, ctx?: { prev: ShoppingFavorite[] | undefined }) {
+      qc.setQueryData(key, ctx?.prev);
+    },
+    onSettled() { qc.invalidateQueries({ queryKey: key }); },
+  };
+}
+
+export interface NewFavorite { id: string; name: string; quantity?: string | null; category: ShoppingCategory }
+
+export function useAddFavorite() {
+  const houseId = useCurrentHouseId();
+  const { session } = useSession();
+  const userId = session?.user.id;
+  const opt = useOptimisticFav<NewFavorite>((favs, v) => [
+    ...favs,
+    {
+      id: v.id, house_id: houseId ?? '', name: v.name.trim(), quantity: v.quantity?.trim() || null,
+      category: v.category, created_by: userId ?? '', created_at: new Date().toISOString(),
+    },
+  ]);
+  return useMutation({
+    mutationFn: async (v: NewFavorite) => {
+      if (!houseId || !userId) throw new Error('אין בית פעיל');
+      const { error } = await supabase.from('shopping_favorites').insert({
+        id: v.id, house_id: houseId, name: v.name.trim(), quantity: v.quantity?.trim() || null,
+        category: v.category, created_by: userId,
+      });
+      if (error) throw error;
+    },
+    ...opt,
+  });
+}
+
+export interface FavoritePatch { id: string; name: string; quantity: string | null; category: ShoppingCategory }
+
+export function useUpdateFavorite() {
+  const opt = useOptimisticFav<FavoritePatch>((favs, p) =>
+    favs.map((x) => (x.id === p.id ? { ...x, name: p.name, quantity: p.quantity, category: p.category } : x)));
+  return useMutation({
+    mutationFn: async (p: FavoritePatch) => {
+      const { error } = await supabase.from('shopping_favorites')
+        .update({ name: p.name, quantity: p.quantity, category: p.category }).eq('id', p.id);
+      if (error) throw error;
+    },
+    ...opt,
+  });
+}
+
+export function useDeleteFavorite() {
+  const opt = useOptimisticFav<string>((favs, id) => favs.filter((x) => x.id !== id));
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('shopping_favorites').delete().eq('id', id);
+      if (error) throw error;
+    },
+    ...opt,
   });
 }
 

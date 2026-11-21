@@ -58,6 +58,35 @@ export function flatRows(items: ShoppingItem[]): ShoppingRow[] {
   return items.map((item) => ({ type: 'item' as const, key: item.id, item }));
 }
 
+/** שם מנורמל להשוואה (בלי רווחים בקצוות ובלי הבדל אותיות). */
+export const normName = norm;
+
+interface NamedFavorite { name: string }
+
+/** האם פריט קבוע כבר ברשימה (ממתין בלבד, בלי הבדל אותיות). */
+export function isInList(favorite: NamedFavorite, items: Pick<ShoppingItem, 'name' | 'status'>[]): boolean {
+  const key = norm(favorite.name);
+  if (!key) return false;
+  return items.some((i) => i.status === 'pending' && norm(i.name) === key);
+}
+
+/** מוצא פריט קבוע לפי שם (בלי הבדל אותיות). */
+export function findFavorite<T extends NamedFavorite>(name: string, favorites: T[]): T | undefined {
+  const key = norm(name);
+  if (!key) return undefined;
+  return favorites.find((f) => norm(f.name) === key);
+}
+
+/** מיון אלפביתי בעברית (לא משנה את המקור). */
+export function sortFavorites<T extends NamedFavorite>(favorites: T[]): T[] {
+  return [...favorites].sort((a, b) => a.name.trim().localeCompare(b.name.trim(), 'he'));
+}
+
+/** קוד השגיאה של Postgres להפרת unique. */
+export function isDuplicateError(e: unknown): boolean {
+  return typeof e === 'object' && e !== null && (e as { code?: string }).code === '23505';
+}
+
 /** ממזג את ההיסטוריה מהשרת עם עותק שמור במכשיר, כך שהצעות נשמרות גם אחרי "נקה את מה שנקנה". */
 export function mergeHistory(server: HistoryRow[], stored: HistoryRow[], max = 300): HistoryRow[] {
   const seen = new Set<string>();
