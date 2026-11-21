@@ -47,6 +47,7 @@ export default function SettingsScreen() {
   const { house, isAdmin } = useCurrentHouse();
   const members = useHouseMembers();
   const setBrush = useSetToothbrushColor();
+  const [brushOpen, setBrushOpen] = useState(false);
   const myBrush = members.data?.find((m) => m.user_id === session?.user.id)?.profile?.toothbrush_color ?? null;
   const takenBrush = takenByOthers(members.data ?? [], session?.user.id);
   const updateProfile = useUpdateProfile();
@@ -176,18 +177,28 @@ export default function SettingsScreen() {
 
         <Section title="מברשת השיניים שלי" delay={40}>
           <Card style={{ gap: spacing.md }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-              {isBrushColor(myBrush) ? <ToothbrushIcon color={myBrush} size={30} /> : null}
-              <Text variant="small" muted style={{ flex: 1 }}>
-                {isBrushColor(myBrush) ? `הצבע שלך: ${brushColorName(myBrush)}. לחיצה על הצבע שנבחר מנקה אותו.` : 'בחר צבע, כדי שכולם בבית ידעו איזו מברשת שלך.'}
-              </Text>
-            </View>
-            <ToothbrushPicker
-              value={myBrush}
-              taken={takenBrush}
-              disabled={setBrush.isPending}
-              onChange={(hex) => setBrush.mutate(hex, { onError: () => Alert.alert('שגיאה', 'לא הצלחנו לשמור את הצבע, נסו שוב') })}
-            />
+            <Pressable
+              onPress={() => { Haptics.selectionAsync().catch(() => {}); setBrushOpen((o) => !o); }}
+              accessibilityLabel="פתיחה וסגירה של בורר צבע המברשת"
+              style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+              {isBrushColor(myBrush) ? <ToothbrushIcon color={myBrush} size={30} /> : <Ionicons name="color-palette-outline" size={26} color={colors.textMuted} />}
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontWeight: '600' }}>{isBrushColor(myBrush) ? brushColorName(myBrush) : 'לא נבחר צבע'}</Text>
+                <Text variant="small" muted>{brushOpen ? 'לחיצה על הצבע שנבחר מנקה אותו' : 'לחץ כדי לבחור צבע'}</Text>
+              </View>
+              <Ionicons name={brushOpen ? 'chevron-up' : 'chevron-down'} size={20} color={colors.textMuted} />
+            </Pressable>
+            {brushOpen ? (
+              <ToothbrushPicker
+                value={myBrush}
+                taken={takenBrush}
+                disabled={setBrush.isPending}
+                onChange={(hex) => {
+                  setBrush.mutate(hex, { onError: () => Alert.alert('שגיאה', 'לא הצלחנו לשמור את הצבע, נסו שוב') });
+                  setBrushOpen(false);
+                }}
+              />
+            ) : null}
           </Card>
         </Section>
 
