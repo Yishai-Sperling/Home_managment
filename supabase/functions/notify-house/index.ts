@@ -1,5 +1,5 @@
 // notify-house — Supabase Edge Function (Deno)
-// מקבלת Database Webhook (INSERT בלבד) ושולחת לכל חברי הבית מלבד מי שביצע את הפעולה:
+// מקבלת Database Webhook (INSERT; ובנוסף UPDATE על issues בלבד — ראו handleIssueUpdate) ושולחת לכל חברי הבית מלבד מי שביצע את הפעולה:
 //  - התראת Push דרך Expo Push (תמיד, לפי הטבלה push_tokens)
 //  - מייל HTML בעברית (RTL) דרך Resend (רק אם הוגדרו RESEND_API_KEY ו-MAIL_FROM)
 //
@@ -174,7 +174,7 @@ function buildPush(
 }
 
 async function sendPush(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Supa,
   tokens: string[],
   title: string,
   body: string,
@@ -226,6 +226,77 @@ const json = (body: unknown, status = 200) =>
     headers: { "Content-Type": "application/json" },
   });
 
+type Supa = ReturnType<typeof createClient>;
+
+// העדפות התראות: מדלגים רק על מי שכיבה במפורש (false); חסר = מקבל
+async function filterByPrefs(supabase: Supa, ids: string[], key: string): Promise<string[]> {
+  if (ids.length === 0) return ids;
+  const { data: prefRows } = await supabase.from("profiles").select("id, notify_prefs").in("id", ids);
+  const off = new Set(
+    (prefRows ?? [])
+      .filter((p) => (p.notify_prefs as Record<string, unknown> | null)?.[key] === false)
+      .map((p) => p.id as string),
+  );
+  return ids.filter((id) => !off.has(id));
+}
+
+// UPDATE על issues (Push בלבד, בלי מייל). הפועל = record.updated_by (נקבע ע"י טריגר ב-0010).
+//  סגירה / "בטיפול": מקבל היוצר (created_by). הקצאה לאחראי חדש (לא null): מקבל האחראי החדש.
+//  עדכון אחד יכול להפעיל שתי הודעות לאנשים שונים. אם אותו אדם היה מקבל שתיים (היוצר הוא גם
+//  האחראי החדש) — נשלחת הודעה אחת: הודעת ההקצאה, אלא אם התקלה נסגרה (אז "נסגרה" חשובה יותר).
+//  לעולם לא מתריעים לפועל עצמו; מכבדים notify_prefs.issues === false.
+async function handleIssueUpdate(supabase: Supa, payload: WebhookPayload): Promise<Response> {
+  const rec = payload.record;
+  const old = payload.old_record;
+  if (!rec || !old) return json({ skipped: "no_old_record" });
+  const houseId = String(rec.house_id ?? "");
+  if (!houseId) return json({ skipped: "no_house" });
+
+  const actorId = rec.updated_by ? String(rec.updated_by) : "";
+  const title = String(rec.title ?? "");
+  const messages = new Map<string, string>(); // userId -> body
+
+  const creator = rec.created_by ? String(rec.created_by) : "";
+  if (old.status !== rec.status && creator) {
+    if (rec.status === "closed") messages.set(creator, `התקלה "${title}" נסגרה`);
+    else if (rec.status === "in_progress") messages.set(creator, `התקלה "${title}" בטיפול`);
+  }
+  const newAssignee = rec.assignee_id ? String(rec.assignee_id) : "";
+  if (newAssignee && old.assignee_id !== rec.assignee_id) {
+    const existing = messages.get(newAssignee);
+    if (!(existing && rec.status === "closed")) {
+      messages.set(newAssignee, `הוקצתה לך תקלה: ${title}`);
+    }
+  }
+  if (actorId) messages.delete(actorId);
+  if (messages.size === 0) return json({ skipped: "nothing_to_notify" });
+
+  // רק חברי הבית הנוכחיים, ורק מי שלא כיבה התראות תקלות
+  const { data: members, error: mErr } = await supabase
+    .from("house_members").select("user_id").eq("house_id", houseId).in("user_id", [...messages.keys()]);
+  if (mErr) return json({ error: mErr.message }, 500);
+  const allowed = new Set(
+    await filterByPrefs(supabase, (members ?? []).map((m) => m.user_id as string), PREF_KEY.issues),
+  );
+  if (allowed.size === 0) return json({ push: 0, email: 0 });
+
+  const { data: house } = await supabase.from("houses").select("name").eq("id", houseId).maybeSingle();
+  const houseName = house?.name ?? "הבית";
+
+  let sent = 0;
+  let removed = 0;
+  for (const [userId, body] of messages) {
+    if (!allowed.has(userId)) continue;
+    const { data: tokenRows } = await supabase.from("push_tokens").select("token").eq("user_id", userId);
+    const tokens = (tokenRows ?? []).map((t) => t.token as string);
+    if (!tokens.length) continue;
+    const r = await sendPush(supabase, tokens, houseName, body, "issues");
+    sent += r.sent;
+    removed += r.removed;
+  }
+  return json({ push: sent, pushRemoved: removed, email: 0 });
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
 
@@ -242,6 +313,14 @@ Deno.serve(async (req) => {
     return json({ error: "bad_json" }, 400);
   }
 
+  if (payload.type === "UPDATE" && payload.table === "issues") {
+    const sb = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+    return await handleIssueUpdate(sb, payload);
+  }
   if (payload.type !== "INSERT") return json({ skipped: "not_insert" });
   const table = payload.table as Table;
   if (!(table in ACTOR_COLUMN) || !payload.record) return json({ skipped: "unsupported_table" });
@@ -265,16 +344,7 @@ Deno.serve(async (req) => {
   if (mErr) return json({ error: mErr.message }, 500);
 
   let recipientIds = (members ?? []).map((m) => m.user_id as string).filter((id) => id !== actorId);
-  if (recipientIds.length > 0) {
-    // העדפות התראות: מדלגים רק על מי שכיבה במפורש (false); חסר = מקבל
-    const { data: prefRows } = await supabase.from("profiles").select("id, notify_prefs").in("id", recipientIds);
-    const off = new Set(
-      (prefRows ?? [])
-        .filter((p) => (p.notify_prefs as Record<string, unknown> | null)?.[PREF_KEY[table]] === false)
-        .map((p) => p.id as string),
-    );
-    recipientIds = recipientIds.filter((id) => !off.has(id));
-  }
+  recipientIds = await filterByPrefs(supabase, recipientIds, PREF_KEY[table]);
   if (recipientIds.length === 0) return json({ push: 0, email: 0 });
 
   const houseName = house?.name ?? "הבית";

@@ -77,3 +77,14 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls.sql
 2. **הפונקציה:** ב-Dashboard ← Edge Functions ← `notify-house` ← Code, הדביקו את התוכן החדש של `functions/notify-house/index.ts` ופרסו מחדש (Verify JWT נשאר כבוי).
 3. **מה חדש:** שריון חוזר (טבלת `car_recurring_rules`, כתיבה רק דרך RPC: `create_recurring_rule`, `update_recurring_rule`, `delete_recurring_rule`, `skip_occurrence`, `materialize_recurring`), העדפות התראה לפי סוג (`profiles.notify_prefs`), וחסימת הסרה/הורדת דרגה של המנהל האחרון בבית שיש בו חברים נוספים (שגיאה `last_admin`).
 4. **בדיקות:** `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/features.sql` (אחרי 0001–0004, 0006, 0007; מסתיים ב-`ALL FEATURE TESTS PASSED`).
+
+## עדכון: נוכחות דיירים, מידע על הבית, מועדפים בקניות והתראות על עדכון תקלה
+1. **SQL Editor:** הריצו את `migrations/0010_family_features.sql` ואחריו (אחרי שהצליח) את `migrations/0011_webhooks_issues_update.sql`. בלי שום עריכה — 0011 מעתיק את כתובת ה-Webhook והסוד מהטריגר הקיים `notify_house_webhook` שעל `shopping_items` (כמו 0008) ויוצר טריגר `notify_house_webhook_update` על `issues`. אם הטריגר הקיים לא נמצא תודפס הודעה והשלב ידולג (אז צרו Webhook ידנית ל-`issues`, אירוע Update). שניהם בטוחים להרצה חוזרת.
+2. **הפונקציה:** ב-Dashboard ← Edge Functions ← `notify-house` ← Code, הדביקו את התוכן החדש של `functions/notify-house/index.ts` ופרסו מחדש (Verify JWT נשאר כבוי).
+3. **מה חדש:**
+   - נוכחות: עמודות `presence` / `presence_eta` / `presence_updated_at` ב-`house_members`; עדכון רק דרך `set_presence(p_house uuid, p_status text, p_eta timestamptz default null)` (שגיאות: `not_authenticated`, `not_member`, `invalid_status`). סטטוס `null` מנקה; `soon` שומר שעת חזרה, כל סטטוס אחר מאפס אותה.
+   - `house_info_items` (מידע על הבית): כל חבר קורא, מוסיף ומעדכן; מחיקה ליוצר או למנהל.
+   - `shopping_favorites`: מועדפים לקניות, שם ייחודי בבית (ללא רגישות לאותיות), כל חבר יכול לנהל.
+   - `issues.updated_by`: נקבע אוטומטית בטריגר, ומאפשר להתראה לדעת מי ביצע את העדכון.
+   - התראות Push על תקלות (ללא מייל): תקלה שנסגרה או עברה ל"בטיפול" מתריעה ליוצר; הקצאה לאחראי חדש מתריעה לאחראי. הפועל עצמו לא מקבל התראה, וההעדפה `issues` נשמרת. אם היוצר הוא גם האחראי החדש נשלחת הודעה אחת (הקצאה, או "נסגרה" אם התקלה נסגרה באותו עדכון).
+4. **בדיקות:** `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/family.sql` (אחרי 0001–0004, 0006, 0007, 0009, 0010; מסתיים ב-`ALL FAMILY TESTS PASSED`).
