@@ -8,9 +8,11 @@ export interface NotifyPrefs {
   car: boolean;
   announcements: boolean;
   issues: boolean;
+  /** תזכורות מקומיות לפני שריון רכב שלי ולפני אירועים */
+  reminders: boolean;
 }
 
-export const DEFAULT_NOTIFY_PREFS: NotifyPrefs = { shopping: true, car: true, announcements: true, issues: true };
+export const DEFAULT_NOTIFY_PREFS: NotifyPrefs = { shopping: true, car: true, announcements: true, issues: true, reminders: true };
 
 export interface Profile {
   id: string;
@@ -32,11 +34,19 @@ export interface House {
   created_at: string;
 }
 
+/** מצב "מי בבית" של דייר בבית מסוים: בבית / בחוץ / חוזר עוד מעט. */
+export type PresenceStatus = 'home' | 'away' | 'soon';
+
 export interface HouseMember {
   house_id: string;
   user_id: string;
   role: Role;
   joined_at: string;
+  /** null = לא עודכן. נקבע רק דרך ה-RPC set_presence */
+  presence?: PresenceStatus | null;
+  /** מתי הדייר צפוי לחזור (כש-presence = 'soon') */
+  presence_eta?: string | null;
+  presence_updated_at?: string | null;
   profile?: Pick<Profile, 'id' | 'full_name' | 'phone'> & { toothbrush_color?: string | null };
 }
 
@@ -112,6 +122,33 @@ export interface Issue {
   status: IssueStatus;
   image_path: string | null;
   assignee_id: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+export type HouseInfoKind = 'text' | 'wifi' | 'phone' | 'code' | 'link';
+
+/** פריט במידע על הבית (סיסמת וויי-פיי, טלפון של שרברב, קוד כניסה ...). */
+export interface HouseInfoItem {
+  id: string;
+  house_id: string;
+  label: string;
+  value: string;
+  kind: HouseInfoKind;
+  /** מוסתר עד לחיצה (סיסמאות וקודים) */
+  is_secret: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** פריט קבוע בקניות: מוסיפים אותו לרשימה בלחיצה אחת. */
+export interface ShoppingFavorite {
+  id: string;
+  house_id: string;
+  name: string;
+  quantity: string | null;
+  category: ShoppingCategory;
   created_by: string;
   created_at: string;
 }

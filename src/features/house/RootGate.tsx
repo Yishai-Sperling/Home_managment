@@ -5,6 +5,7 @@ import { Screen } from '@/components/ui';
 import { useProfile, useSession } from '@/lib/session';
 import { useTheme } from '@/theme';
 import { usePushRegistration } from '@/features/notifications/usePushRegistration';
+import { useReminders } from '@/features/notifications/useReminders';
 
 /**
  * שער הניווט: אין session → (auth); יש session אך אין בית נוכחי → onboarding; אחרת → (tabs).
@@ -17,6 +18,7 @@ export function RootGate() {
   const { colors } = useTheme();
   const waiting = loading || (!!session && profile.isLoading);
   usePushRegistration(!!session && !!profile.data?.current_house_id);
+  useReminders(!!session && !!profile.data?.current_house_id);
 
   if (waiting) {
     return (
@@ -40,6 +42,7 @@ export function RootGate() {
       <Stack.Protected guard={hasHouse}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="settings" />
+        <Stack.Screen name="info" />
       </Stack.Protected>
     </Stack>
   );

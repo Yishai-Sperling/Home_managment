@@ -11,6 +11,7 @@ export const NOTIFY_PREF_LABELS: { key: keyof NotifyPrefs; label: string }[] = [
   { key: 'car', label: 'רכב' },
   { key: 'announcements', label: 'מודעות' },
   { key: 'issues', label: 'תקלות' },
+  { key: 'reminders', label: 'תזכורות' },
 ];
 
 /** קריאה/כתיבה של profiles.notify_prefs של המשתמש הנוכחי, עם עדכון אופטימי ורולבק. */
