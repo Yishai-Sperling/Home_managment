@@ -3,7 +3,7 @@ import { Alert, Linking, Pressable, ScrollView, Share, Switch, View } from 'reac
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeOut, LinearTransition, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Button, Card, Input, Screen, Text, useScreenPadding } from '@/components/ui';
 import { roleLabels } from '@/lib/labels';
 import { unregisterPush } from '@/features/notifications/registerPush';
@@ -48,6 +48,9 @@ export default function SettingsScreen() {
   const members = useHouseMembers();
   const setBrush = useSetToothbrushColor();
   const [brushOpen, setBrushOpen] = useState(false);
+  const chevron = useSharedValue(0);
+  const chevronStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${chevron.value * 180}deg` }] }));
+  const toggleBrush = (open: boolean) => { setBrushOpen(open); chevron.value = withTiming(open ? 1 : 0, { duration: 220 }); };
   const myBrush = members.data?.find((m) => m.user_id === session?.user.id)?.profile?.toothbrush_color ?? null;
   const takenBrush = takenByOthers(members.data ?? [], session?.user.id);
   const updateProfile = useUpdateProfile();
@@ -176,9 +179,10 @@ export default function SettingsScreen() {
         </Section>
 
         <Section title="מברשת השיניים שלי" delay={40}>
+          <Animated.View layout={LinearTransition.duration(240)} style={{ overflow: 'hidden', borderRadius: radius.lg }}>
           <Card style={{ gap: spacing.md }}>
             <Pressable
-              onPress={() => { Haptics.selectionAsync().catch(() => {}); setBrushOpen((o) => !o); }}
+              onPress={() => { Haptics.selectionAsync().catch(() => {}); toggleBrush(!brushOpen); }}
               accessibilityLabel="פתיחה וסגירה של בורר צבע המברשת"
               style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
               {isBrushColor(myBrush) ? <ToothbrushIcon color={myBrush} size={30} /> : <Ionicons name="color-palette-outline" size={26} color={colors.textMuted} />}
@@ -186,20 +190,23 @@ export default function SettingsScreen() {
                 <Text style={{ fontWeight: '600' }}>{isBrushColor(myBrush) ? brushColorName(myBrush) : 'לא נבחר צבע'}</Text>
                 <Text variant="small" muted>{brushOpen ? 'לחיצה על הצבע שנבחר מנקה אותו' : 'לחץ כדי לבחור צבע'}</Text>
               </View>
-              <Ionicons name={brushOpen ? 'chevron-up' : 'chevron-down'} size={20} color={colors.textMuted} />
+              <Animated.View style={chevronStyle}><Ionicons name="chevron-down" size={20} color={colors.textMuted} /></Animated.View>
             </Pressable>
             {brushOpen ? (
+              <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(120)}>
               <ToothbrushPicker
                 value={myBrush}
                 taken={takenBrush}
                 disabled={setBrush.isPending}
                 onChange={(hex) => {
                   setBrush.mutate(hex, { onError: () => Alert.alert('שגיאה', 'לא הצלחנו לשמור את הצבע, נסו שוב') });
-                  setBrushOpen(false);
+                  toggleBrush(false);
                 }}
               />
+              </Animated.View>
             ) : null}
           </Card>
+          </Animated.View>
         </Section>
 
         {house ? (
