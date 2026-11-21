@@ -11,13 +11,41 @@ import { Avatar } from '@/components/Avatar';
 import { shoppingCategoryLabels, shoppingStatusLabels } from '@/lib/labels';
 import { useCurrentHouseId } from '@/lib/session';
 import { radius, spacing, useTheme } from '@/theme';
-import type { ShoppingCategory, ShoppingItem } from '@/types/database';
+import type { ShoppingCategory, ShoppingFavorite, ShoppingItem } from '@/types/database';
 import {
   useAddItem, useClearBought, useDeleteItem, useMemberNames, useShoppingHistory, useShoppingItems,
-  useToggleBought, useUpdateItem, type ShoppingFilter,
+  useToggleBought, useUpdateItem, useFavorites, useAddFavorite, useUpdateFavorite, useDeleteFavorite,
+  type ShoppingFilter,
 } from '@/features/shopping/hooks';
-import { flatRows, groupByCategory, suggestNames, type ShoppingRow } from '@/features/shopping/helpers';
+import {
+  findFavorite, flatRows, groupByCategory, isDuplicateError, isInList, sortFavorites, suggestNames,
+  type ShoppingRow,
+} from '@/features/shopping/helpers';
 import { ItemEditSheet } from '@/features/shopping/ItemEditSheet';
+import { FavoritesSheet } from '@/features/shopping/FavoritesSheet';
+
+const DUP_FAVORITE_MSG = 'הפריט כבר קיים ברשימת הקבועים';
+
+function FavoriteChip({ fav, inList, onPress, onLongPress }: {
+  fav: ShoppingFavorite; inList: boolean; onPress: () => void; onLongPress: () => void;
+}) {
+  const { colors } = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      onLongPress={onLongPress}
+      accessibilityRole="button"
+      accessibilityLabel={inList ? `${fav.name}, כבר ברשימה` : `הוסף ${fav.name}`}
+      style={{
+        flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: colors.surfaceAlt,
+        borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 8, opacity: inList ? 0.5 : 1,
+      }}>
+      {inList ? <Ionicons name="checkmark-circle" size={16} color={colors.success} /> : null}
+      <Text variant="small" style={{ fontWeight: '600' }}>{fav.name}</Text>
+      {fav.quantity ? <Text variant="small" muted>{fav.quantity}</Text> : null}
+    </Pressable>
+  );
+}
 
 const categories = Object.keys(shoppingCategoryLabels) as ShoppingCategory[];
 const categoryIcon: Record<ShoppingCategory, keyof typeof Ionicons.glyphMap> = {
@@ -29,8 +57,9 @@ const filters: { key: ShoppingFilter; label: string }[] = [
   { key: 'bought', label: shoppingStatusLabels.bought },
 ];
 
-function ItemRow({ item, motion, adderName, onToggle, onEdit, onDelete }: {
-  item: ShoppingItem; motion: ListMotion; adderName: string | undefined; onToggle: () => void; onEdit: () => void; onDelete: () => void;
+function ItemRow({ item, motion, adderName, isFavorite, onToggle, onEdit, onDelete, onToggleFavorite }: {
+  item: ShoppingItem; motion: ListMotion; adderName: string | undefined; isFavorite: boolean;
+  onToggle: () => void; onEdit: () => void; onDelete: () => void; onToggleFavorite: () => void;
 }) {
   const { colors } = useTheme();
   const bought = item.status === 'bought';
@@ -70,6 +99,15 @@ function ItemRow({ item, motion, adderName, onToggle, onEdit, onDelete }: {
           </View>
         </Pressable>
         <Avatar name={adderName} id={item.added_by || item.id} size={24} />
+        <Pressable
+          onPress={onToggleFavorite}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={isFavorite ? 'הסר מהקבועים' : 'הוסף לקבועים'}
+          accessibilityState={{ selected: isFavorite }}
+          style={{ padding: spacing.xs }}>
+          <Ionicons name={isFavorite ? 'star' : 'star-outline'} size={20} color={isFavorite ? colors.warning : colors.textMuted} />
+        </Pressable>
         <Pressable onPress={confirmDelete} hitSlop={10} accessibilityLabel="מחק" style={{ padding: spacing.xs }}>
           <Ionicons name="trash-outline" size={20} color={colors.danger} />
         </Pressable>
@@ -80,6 +118,7 @@ function ItemRow({ item, motion, adderName, onToggle, onEdit, onDelete }: {
 
 export default function ShoppingScreen() {
   const pad = useScreenPadding();
+  const { colors } = useTheme();
   const houseId = useCurrentHouseId();
   const [filter, setFilter] = useState<ShoppingFilter>('all');
   const [name, setName] = useState('');
@@ -94,10 +133,47 @@ export default function ShoppingScreen() {
   const update = useUpdateItem();
   const clearBought = useClearBought();
   const [editing, setEditing] = useState<ShoppingItem | null>(null);
+  const [favHint, setFavHint] = useState<string | null>(null);
   const { data: boughtItems } = useShoppingItems(houseId, 'bought');
   const { data: history } = useShoppingHistory(houseId);
   const { data: names } = useMemberNames(houseId);
+  const { data: pendingItems } = useShoppingItems(houseId, 'pending');
+  const { data: favData } = useFavorites(houseId);
+  const addFav = useAddFavorite();
+  const updateFav = useUpdateFavorite();
+  const delFav = useDeleteFavorite();
+  const [manageOpen, setManageOpen] = useState(false);
+  const [manageEditId, setManageEditId] = useState<string | null>(null);
+  const [favError, setFavError] = useState<string | null>(null);
+  const favorites = useMemo(() => sortFavorites(favData ?? []), [favData]);
   const hasBought = (boughtItems?.length ?? 0) > 0;
+
+  const onFavError = (e: unknown) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+    setFavError(isDuplicateError(e) ? DUP_FAVORITE_MSG : 'הפעולה נכשלה, נסו שוב');
+  };
+  const openManage = (editId: string | null) => { setFavError(null); setManageEditId(editId); setManageOpen(true); };
+
+  const pressFavorite = (f: ShoppingFavorite) => {
+    if (isInList(f, pendingItems ?? [])) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+      setFavHint(`"${f.name}" כבר ברשימה`);
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    setFavHint(null);
+    add.mutate({ id: uuid(), name: f.name, quantity: f.quantity ?? undefined, category: f.category });
+  };
+  const toggleFavoriteOfItem = (it: ShoppingItem) => {
+    Haptics.selectionAsync().catch(() => {});
+    setFavError(null);
+    const existing = findFavorite(it.name, favData ?? []);
+    if (existing) { delFav.mutate(existing.id, { onError: onFavError }); return; }
+    addFav.mutate(
+      { id: uuid(), name: it.name, quantity: it.quantity, category: it.category },
+      { onError: (e) => { onFavError(e); if (isDuplicateError(e)) Alert.alert('קבועים', DUP_FAVORITE_MSG); } },
+    );
+  };
   const suggestions = useMemo(() => suggestNames(history ?? [], name), [history, name]);
   const rows: ShoppingRow[] = useMemo(
     () => (filter === 'bought' ? flatRows(items ?? []) : groupByCategory(items ?? [])),
@@ -151,6 +227,29 @@ export default function ShoppingScreen() {
               <Button title="הוסף לרשימה" onPress={submit} disabled={!name.trim() || !houseId} />
               {add.isError ? <Text variant="small" style={{ color: '#DC2626' }}>ההוספה נכשלה, נסו שוב</Text> : null}
             </Card>
+            <View style={{ gap: spacing.xs }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                <Text variant="label" muted>קבועים</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ flex: 1 }} contentContainerStyle={{ gap: spacing.sm, alignItems: 'center' }}>
+                  {favorites.length === 0 ? <Text variant="small" muted>סמנו כוכב ליד פריט כדי להוסיף אותו לקבועים</Text> : null}
+                  {favorites.map((f) => (
+                    <FavoriteChip
+                      key={f.id}
+                      fav={f}
+                      inList={isInList(f, pendingItems ?? [])}
+                      onPress={() => pressFavorite(f)}
+                      onLongPress={() => { Haptics.selectionAsync().catch(() => {}); openManage(f.id); }}
+                    />
+                  ))}
+                </ScrollView>
+                <Pressable onPress={() => openManage(null)} accessibilityRole="button" accessibilityLabel="ניהול קבועים" hitSlop={8}
+                  style={{ paddingHorizontal: spacing.sm, paddingVertical: 6 }}>
+                  <Text variant="small" style={{ fontWeight: '600', color: colors.primary }}>ניהול</Text>
+                </Pressable>
+              </View>
+              {favHint ? <Text variant="small" muted>{favHint}</Text> : null}
+              {favError && !manageOpen ? <Text variant="small" style={{ color: colors.danger }}>{favError}</Text> : null}
+            </View>
             <View style={{ flexDirection: 'row', gap: spacing.sm }}>
               {filters.map((f) => (
                 <Chip key={f.key} label={f.label} selected={filter === f.key} onPress={() => setFilter(f.key)} />
@@ -173,6 +272,8 @@ export default function ShoppingScreen() {
             motion={motion}
             item={row.item}
             adderName={names?.[row.item.added_by]}
+            isFavorite={!!findFavorite(row.item.name, favData ?? [])}
+            onToggleFavorite={() => toggleFavoriteOfItem(row.item)}
             onEdit={() => setEditing(row.item)}
             onToggle={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
@@ -191,6 +292,18 @@ export default function ShoppingScreen() {
           item={editing}
           onClose={() => setEditing(null)}
           onSave={(p) => { update.mutate(p); setEditing(null); }}
+        />
+      ) : null}
+      {manageOpen ? (
+        <FavoritesSheet
+          key={manageEditId ?? 'new'}
+          favorites={favorites}
+          initialEditId={manageEditId}
+          error={favError}
+          onClose={() => { setManageOpen(false); setFavError(null); }}
+          onAdd={(v) => { setFavError(null); addFav.mutate({ id: uuid(), ...v }, { onError: onFavError }); }}
+          onUpdate={(p) => { setFavError(null); updateFav.mutate(p, { onError: onFavError }); }}
+          onDelete={(id) => delFav.mutate(id, { onError: onFavError })}
         />
       ) : null}
     </Screen>

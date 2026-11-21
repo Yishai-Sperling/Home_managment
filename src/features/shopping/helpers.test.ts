@@ -1,9 +1,39 @@
 import { describe, expect, it } from '@jest/globals';
-import { groupByCategory, mergeHistory, suggestNames, type HistoryRow } from './helpers';
+import {
+  findFavorite, groupByCategory, isDuplicateError, isInList, mergeHistory, sortFavorites, suggestNames,
+  type HistoryRow,
+} from './helpers';
 import type { ShoppingItem } from '@/types/database';
 
 const h = (name: string, created_at: string, status: 'pending' | 'bought' = 'bought', category: HistoryRow['category'] = 'groceries'): HistoryRow =>
   ({ name, created_at, status, category });
+
+describe('favorites helpers', () => {
+  const items = [
+    { name: 'Milk ', status: 'pending' as const },
+    { name: 'לחם', status: 'bought' as const },
+  ];
+  it('isInList is case-insensitive and pending only', () => {
+    expect(isInList({ name: 'milk' }, items)).toBe(true);
+    expect(isInList({ name: 'לחם' }, items)).toBe(false);
+    expect(isInList({ name: '  ' }, items)).toBe(false);
+  });
+  it('findFavorite matches case-insensitively', () => {
+    const favs = [{ name: 'Milk', id: '1' }];
+    expect(findFavorite(' milk', favs)?.id).toBe('1');
+    expect(findFavorite('x', favs)).toBeUndefined();
+  });
+  it('sortFavorites sorts Hebrew alphabetically without mutating', () => {
+    const src = [{ name: 'תפוח' }, { name: 'אורז' }, { name: 'חלב' }];
+    expect(sortFavorites(src).map((f) => f.name)).toEqual(['אורז', 'חלב', 'תפוח']);
+    expect(src[0].name).toBe('תפוח');
+  });
+  it('isDuplicateError detects 23505', () => {
+    expect(isDuplicateError({ code: '23505' })).toBe(true);
+    expect(isDuplicateError(new Error('x'))).toBe(false);
+    expect(isDuplicateError(null)).toBe(false);
+  });
+});
 
 describe('suggestNames', () => {
   it('returns nothing for empty text', () => {
