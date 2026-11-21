@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { useQuery } from '@tanstack/react-query';
+import { clearPersistedCache } from '@/lib/queryClient';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types/database';
 
@@ -11,7 +12,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<SessionState>({ session: null, loading: true });
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setState({ session: data.session, loading: false }));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => setState({ session, loading: false }));
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') clearPersistedCache();
+      setState({ session, loading: false });
+    });
     return () => sub.subscription.unsubscribe();
   }, []);
   return <Ctx.Provider value={state}>{children}</Ctx.Provider>;
