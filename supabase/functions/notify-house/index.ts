@@ -1,5 +1,5 @@
 // notify-house — Supabase Edge Function (Deno)
-// מקבלת Database Webhook (INSERT; ובנוסף UPDATE על issues בלבד — ראו handleIssueUpdate) ושולחת לכל חברי הבית מלבד מי שביצע את הפעולה:
+// מקבלת Database Webhook (INSERT; ובנוסף UPDATE על issues — handleIssueUpdate, ועל house_members — handlePresenceUpdate) ושולחת לכל חברי הבית מלבד מי שביצע את הפעולה:
 //  - התראת Push דרך Expo Push (תמיד, לפי הטבלה push_tokens)
 //  - מייל HTML בעברית (RTL) דרך Resend (רק אם הוגדרו RESEND_API_KEY ו-MAIL_FROM)
 //
@@ -303,6 +303,67 @@ async function handleIssueUpdate(supabase: Supa, payload: WebhookPayload): Promi
   return json({ push: sent, pushRemoved: removed, email: 0 });
 }
 
+// opt-in: מקבלים רק מי שהפעיל במפורש (=== true); חסר = כבוי
+async function filterOptIn(supabase: Supa, ids: string[], key: string): Promise<string[]> {
+  if (ids.length === 0) return ids;
+  const { data: prefRows } = await supabase.from("profiles").select("id, notify_prefs").in("id", ids);
+  const on = new Set(
+    (prefRows ?? [])
+      .filter((p) => (p.notify_prefs as Record<string, unknown> | null)?.[key] === true)
+      .map((p) => p.id as string),
+  );
+  return ids.filter((id) => on.has(id));
+}
+
+const PRESENCE_FLAP_MS = 5 * 60 * 1000;
+
+// UPDATE על house_members (Push בלבד): "<שם> הגיע/ה הביתה" / "<שם> יצא/ה מהבית" לשאר חברי הבית.
+//  רק כש-presence החדש הוא home/away ושונה מהקודם ('soon'/null מתעלמים).
+//  נגד הבהוב: מדלגים אם הקודם היה home/away ועברו פחות מ-5 דקות מ-old_record.presence_updated_at.
+//  נמענים: חברים אחרים עם push token ו-notify_prefs.presence_events === true (opt-in; חסר = כבוי).
+//  מדלגים לגמרי אם notify_prefs.share_presence === false אצל הפועל (חסר = משתף).
+async function handlePresenceUpdate(supabase: Supa, payload: WebhookPayload): Promise<Response> {
+  const rec = payload.record;
+  const old = payload.old_record;
+  if (!rec || !old) return json({ skipped: "no_old_record" });
+  const next = rec.presence;
+  const prev = old.presence;
+  if (next !== "home" && next !== "away") return json({ skipped: "presence_not_home_away" });
+  if (next === prev) return json({ skipped: "presence_unchanged" });
+  if (prev === "home" || prev === "away") {
+    const t1 = Date.parse(String(rec.presence_updated_at ?? ""));
+    const t0 = Date.parse(String(old.presence_updated_at ?? ""));
+    if (!isNaN(t1) && !isNaN(t0) && t1 - t0 < PRESENCE_FLAP_MS) return json({ skipped: "flapping" });
+  }
+  const houseId = String(rec.house_id ?? "");
+  const actorId = String(rec.user_id ?? "");
+  if (!houseId || !actorId) return json({ skipped: "no_house" });
+
+  const [{ data: actorProfile }, { data: members, error: mErr }, { data: house }] = await Promise.all([
+    supabase.from("profiles").select("full_name, notify_prefs").eq("id", actorId).maybeSingle(),
+    supabase.from("house_members").select("user_id").eq("house_id", houseId),
+    supabase.from("houses").select("name").eq("id", houseId).maybeSingle(),
+  ]);
+  if (mErr) return json({ error: mErr.message }, 500);
+  if ((actorProfile?.notify_prefs as Record<string, unknown> | null)?.share_presence === false) {
+    return json({ skipped: "presence_not_shared" });
+  }
+
+  let recipientIds = (members ?? []).map((m) => m.user_id as string).filter((id) => id !== actorId);
+  recipientIds = await filterOptIn(supabase, recipientIds, "presence_events");
+  if (recipientIds.length === 0) return json({ push: 0, email: 0 });
+
+  const { data: tokenRows } = await supabase.from("push_tokens").select("token").in("user_id", recipientIds);
+  const tokens = (tokenRows ?? []).map((t) => t.token as string);
+  if (!tokens.length) return json({ push: 0, email: 0 });
+
+  const fullName = actorProfile?.full_name?.trim() || "";
+  const name = fullName.split(/\s+/)[0] || "דייר";
+  const body = next === "home" ? `${name} הגיע/ה הביתה` : `${name} יצא/ה מהבית`;
+  const r = await sendPush(supabase, tokens, house?.name ?? "הבית", body, "home");
+  return json({ push: r.sent, pushRemoved: r.removed, email: 0 });
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
 
@@ -326,6 +387,14 @@ Deno.serve(async (req) => {
       { auth: { persistSession: false, autoRefreshToken: false } },
     );
     return await handleIssueUpdate(sb, payload);
+  }
+  if (payload.type === "UPDATE" && payload.table === "house_members") {
+    const sb = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+    return await handlePresenceUpdate(sb, payload);
   }
   if (payload.type !== "INSERT") return json({ skipped: "not_insert" });
   const table = payload.table as Table;
