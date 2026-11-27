@@ -10,9 +10,15 @@ export interface NotifyPrefs {
   issues: boolean;
   /** תזכורות מקומיות לפני שריון רכב שלי ולפני אירועים */
   reminders: boolean;
+  /** קבלת התראה כשדייר מגיע הביתה או יוצא (הסכמה מפורשת: כבוי כברירת מחדל) */
+  presence_events: boolean;
+  /** שיתוף הכניסות והיציאות שלי עם אחרים (פועל כברירת מחדל, אפשר לכבות) */
+  share_presence: boolean;
 }
 
-export const DEFAULT_NOTIFY_PREFS: NotifyPrefs = { shopping: true, car: true, announcements: true, issues: true, reminders: true };
+export const DEFAULT_NOTIFY_PREFS: NotifyPrefs = {
+  shopping: true, car: true, announcements: true, issues: true, reminders: true, presence_events: false, share_presence: true,
+};
 
 export interface Profile {
   id: string;

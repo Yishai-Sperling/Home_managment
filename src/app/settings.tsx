@@ -282,7 +282,7 @@ export default function SettingsScreen() {
               </View>
             ))}
           </Card>
-          <Text variant="small" muted>תזכורות לפני שריון הרכב שלך ולפני אירועים</Text>
+          <Text variant="small" muted>{'תזכורות: לפני שריון הרכב שלך ולפני אירועים. "מי הגיע ומי יצא" כבוי כברירת מחדל. "שתף את הכניסות והיציאות שלי" קובע אם אחרים יקבלו התראה כשאתה מגיע או יוצא.'}</Text>
           {prefsError ?<Text variant="small" style={{ color: colors.danger }}>שמירת ההעדפות נכשלה, נסו שוב</Text> : null}
         </Section>
 

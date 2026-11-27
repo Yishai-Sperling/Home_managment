@@ -5,6 +5,7 @@ describe('routeForNotification', () => {
   it('maps known screens to routes', () => {
     expect(routeForNotification({ screen: 'shopping' })).toBe('/shopping');
     expect(routeForNotification({ screen: 'car' })).toBe('/car');
+    expect(routeForNotification({ screen: 'home' })).toBe('/');
   });
   it('ignores unknown or malformed data', () => {
     expect(routeForNotification({ screen: 'admin' })).toBeNull();

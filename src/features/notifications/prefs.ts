@@ -12,6 +12,8 @@ export const NOTIFY_PREF_LABELS: { key: keyof NotifyPrefs; label: string }[] = [
   { key: 'announcements', label: 'מודעות' },
   { key: 'issues', label: 'תקלות' },
   { key: 'reminders', label: 'תזכורות' },
+  { key: 'presence_events', label: 'מי הגיע ומי יצא מהבית' },
+  { key: 'share_presence', label: 'שתף את הכניסות והיציאות שלי' },
 ];
 
 /** קריאה/כתיבה של profiles.notify_prefs של המשתמש הנוכחי, עם עדכון אופטימי ורולבק. */
