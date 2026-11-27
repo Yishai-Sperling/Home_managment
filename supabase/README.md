@@ -88,3 +88,8 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls.sql
    - `issues.updated_by`: נקבע אוטומטית בטריגר, ומאפשר להתראה לדעת מי ביצע את העדכון.
    - התראות Push על תקלות (ללא מייל): תקלה שנסגרה או עברה ל"בטיפול" מתריעה ליוצר; הקצאה לאחראי חדש מתריעה לאחראי. הפועל עצמו לא מקבל התראה, וההעדפה `issues` נשמרת. אם היוצר הוא גם האחראי החדש נשלחת הודעה אחת (הקצאה, או "נסגרה" אם התקלה נסגרה באותו עדכון).
 4. **בדיקות:** `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/family.sql` (אחרי 0001–0004, 0006, 0007, 0009, 0010; מסתיים ב-`ALL FAMILY TESTS PASSED`).
+
+## עדכון: מיקום הבית
+1. **SQL Editor:** הריצו את `migrations/0012_house_location.sql`. בלי שום עריכה, בטוח להרצה חוזרת.
+2. **מה חדש:** עמודות `home_lat` / `home_lng` / `home_radius_m` (ברירת מחדל 150 מטר, טווח 50–1000) ב-`houses`. כל חבר בית קורא; עדכון רק למנהל, דרך `set_house_location(p_house uuid, p_lat double precision default null, p_lng double precision default null, p_radius_m integer default 150)` (שגיאות: `not_authenticated`, `not_member`, `forbidden`, `invalid_location`). שליחת `null` בשתי הקואורדינטות מנקה את המיקום.
+3. **בדיקות:** `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/location.sql` (אחרי 0001–0004, 0006, 0007, 0009, 0010, 0012; מסתיים ב-`ALL LOCATION TESTS PASSED`).
