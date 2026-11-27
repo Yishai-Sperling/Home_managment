@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
+import { Alert, KeyboardAvoidingView, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Chip, Input, Text } from '@/components/ui';
 import { shoppingCategoryLabels } from '@/lib/labels';
@@ -59,7 +59,7 @@ export function FavoritesSheet({ favorites, initialEditId, error, onClose, onAdd
   return (
     <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, justifyContent: 'flex-end', zIndex: 50 }}>
       <Pressable onPress={onClose} accessibilityLabel="סגור" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.4)' }} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView behavior="padding">
         <View style={{
           backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg,
           padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl, maxHeight: windowHeight * 0.9,

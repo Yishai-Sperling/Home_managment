@@ -14,7 +14,7 @@ const tabs = [
 export default function TabsLayout() {
   const { colors } = useTheme();
   return (
-    <Tabs screenOptions={{ headerShown: false, tabBarActiveTintColor: colors.primary, tabBarInactiveTintColor: colors.textMuted, tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border } }}>
+    <Tabs screenOptions={{ headerShown: false, tabBarAllowFontScaling: false, tabBarActiveTintColor: colors.primary, tabBarInactiveTintColor: colors.textMuted, tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border } }}>
       {tabs.map((t) => (
         <Tabs.Screen key={t.name} name={t.name} options={{ title: t.title, tabBarIcon: ({ color, size }) => <Ionicons name={t.icon as any} color={color as string} size={size} /> }} />
       ))}

@@ -7,11 +7,14 @@ import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { radius, spacing, useTheme, font } from '@/theme';
 
+/** תקרה לגודל הפונט כשהמשתמש מגדיל את הטקסט במערכת, כדי שהפריסה לא תישבר (עדיין גדול יותר מהרגיל). */
+export const MAX_FONT_SCALE = 1.3;
+
 type Variant = keyof typeof font;
 
 export function Text({ variant = 'body', muted, style, ...p }: TextProps & { variant?: Variant; muted?: boolean }) {
   const { colors } = useTheme();
-  return <RNText {...p} style={[font[variant], { color: muted ? colors.textMuted : colors.text }, style]} />;
+  return <RNText maxFontSizeMultiplier={MAX_FONT_SCALE} {...p} style={[font[variant], { color: muted ? colors.textMuted : colors.text }, style]} />;
 }
 
 export function Screen({ children, style, ...p }: ViewProps) {
@@ -35,7 +38,7 @@ export function Button({ title, onPress, variant = 'primary', loading, disabled,
       disabled={disabled || loading}
       onPress={(e) => { Haptics.selectionAsync().catch(() => {}); onPress?.(e); }}
       style={({ pressed }) => [{ backgroundColor: bg, opacity: disabled ? 0.5 : pressed ? 0.85 : 1, borderRadius: radius.md, paddingVertical: 14, paddingHorizontal: spacing.xl, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' }, style]}>
-      {loading ? <ActivityIndicator color={fg} /> : <RNText style={{ color: fg, fontSize: 16, fontWeight: '600' }}>{title}</RNText>}
+      {loading ? <ActivityIndicator color={fg} /> : <RNText maxFontSizeMultiplier={MAX_FONT_SCALE} style={{ color: fg, fontSize: 16, fontWeight: '600' }}>{title}</RNText>}
     </Pressable>
   );
 }
@@ -46,6 +49,7 @@ export function Input({ label, style, ...p }: TextInputProps & { label?: string 
     <View style={{ gap: spacing.xs }}>
       {label ? <Text variant="label" muted>{label}</Text> : null}
       <TextInput
+        maxFontSizeMultiplier={MAX_FONT_SCALE}
         placeholderTextColor={colors.textMuted}
         {...p}
         style={[{ backgroundColor: colors.surface, color: colors.text, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: 12, fontSize: 16 }, style]}
@@ -58,7 +62,7 @@ export function Chip({ label, selected, onPress }: { label: string; selected?: b
   const { colors } = useTheme();
   return (
     <Pressable onPress={onPress} style={{ backgroundColor: selected ? colors.primary : colors.surfaceAlt, borderRadius: radius.pill, paddingHorizontal: spacing.lg, paddingVertical: 8 }}>
-      <RNText style={{ color: selected ? colors.primaryText : colors.text, fontWeight: '600', fontSize: 14 }}>{label}</RNText>
+      <RNText maxFontSizeMultiplier={MAX_FONT_SCALE} style={{ color: selected ? colors.primaryText : colors.text, fontWeight: '600', fontSize: 14 }}>{label}</RNText>
     </Pressable>
   );
 }

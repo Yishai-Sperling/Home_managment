@@ -1,6 +1,6 @@
 import { HouseHeader } from '@/features/house';
 import React, { useState } from 'react';
-import { Alert, FlatList, Modal, Pressable, ScrollView, View } from 'react-native';
+import { Alert, FlatList, KeyboardAvoidingView, Modal, Pressable, ScrollView, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useListMotion } from '@/theme/motion';
 import { uuid } from '@/lib/uuid';
@@ -109,9 +109,9 @@ function FormModal({ visible, onClose, editing }: { visible: boolean; onClose: (
   const { colors } = useTheme();
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: colors.bg }}>
         {visible ? <AnnouncementForm key={editing?.id ?? 'new'} editing={editing} onClose={onClose} /> : null}
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

@@ -1,6 +1,6 @@
 import { HouseHeader } from '@/features/house';
 import React, { useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal, Pressable, ScrollView, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useListMotion } from '@/theme/motion';
 import { uuid } from '@/lib/uuid';
@@ -142,7 +142,7 @@ function ReportModal({ visible, onClose }: { visible: boolean; onClose: () => vo
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: colors.bg }}>
         <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }} keyboardShouldPersistTaps="handled">
           <Text variant="title">דיווח על תקלה</Text>
           <Input label="כותרת" value={title} onChangeText={setTitle} placeholder="מה התקלה?" />
@@ -170,7 +170,7 @@ function ReportModal({ visible, onClose }: { visible: boolean; onClose: () => vo
             <Button title="ביטול" variant="secondary" onPress={onClose} style={{ flex: 1 }} />
           </View>
         </ScrollView>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -191,9 +191,9 @@ function EditModal({ issue, onClose }: { issue: Issue | null; onClose: () => voi
   const { colors } = useTheme();
   return (
     <Modal visible={!!issue} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: colors.bg }}>
         {issue ? <EditForm key={issue.id} issue={issue} onClose={onClose} /> : null}
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

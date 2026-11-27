@@ -1,5 +1,5 @@
 import React from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,7 +12,7 @@ export function AuthShell({ title, subtitle, children }: { title: string; subtit
   const { top, bottom } = useSafeAreaInsets();
   return (
     <Screen>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <ScrollView
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingTop: top + spacing.xl, paddingBottom: bottom + spacing.xl, paddingHorizontal: spacing.lg, gap: spacing.xl }}>

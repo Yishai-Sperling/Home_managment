@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Switch, View } from 'react-native';
+import { KeyboardAvoidingView, Pressable, ScrollView, Switch, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -110,7 +110,7 @@ export function BookingSheet({ mode, now, start, end, conflict, pending, error, 
       <Animated.View entering={FadeIn.duration(150)} exiting={FadeOut.duration(120)} style={{ position: 'absolute', top: 0, bottom: 0, start: 0, end: 0, backgroundColor: 'rgba(0,0,0,0.35)' }}>
         <Pressable style={{ flex: 1 }} onPress={onClose} accessibilityLabel="סגירה" />
       </Animated.View>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} pointerEvents="box-none" style={{ position: 'absolute', bottom: 0, start: 0, end: 0 }}>
+      <KeyboardAvoidingView behavior="padding" pointerEvents="box-none" style={{ position: 'absolute', bottom: 0, start: 0, end: 0 }}>
         <Animated.View entering={SlideInDown.duration(220)} exiting={SlideOutDown.duration(180)} style={{ backgroundColor: colors.surface, borderTopLeftRadius: radius.lg * 1.4, borderTopRightRadius: radius.lg * 1.4, maxHeight: 640 }}>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, Share, Switch, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Linking, Pressable, ScrollView, Share, Switch, View } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
@@ -163,6 +163,7 @@ export default function SettingsScreen() {
 
   return (
     <Screen>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={[pad, { paddingBottom: spacing.xxl * 2, gap: spacing.xl }]} keyboardShouldPersistTaps="handled">
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
           <Pressable onPress={() => router.back()} accessibilityLabel="חזרה" style={{ width: 40, height: 40, borderRadius: radius.pill, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}>
@@ -310,6 +311,7 @@ export default function SettingsScreen() {
           </Section>
         ) : null}
       </ScrollView>
+      </KeyboardAvoidingView>
     </Screen>
   );
 }
