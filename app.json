@@ -41,6 +41,15 @@
           "icon": "./assets/notification-icon.png",
           "color": "#4F46E5"
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "האפליקציה משתמשת במיקום כדי לעדכן אוטומטית מי נמצא בבית. המיקום נשאר על הטלפון.",
+          "locationWhenInUsePermission": "האפליקציה משתמשת במיקום כדי לקבוע את מיקום הבית.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": false
+        }
       ]
     ],
     "extra": {

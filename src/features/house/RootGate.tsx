@@ -6,6 +6,7 @@ import { useProfile, useSession } from '@/lib/session';
 import { useTheme } from '@/theme';
 import { usePushRegistration } from '@/features/notifications/usePushRegistration';
 import { useReminders } from '@/features/notifications/useReminders';
+import { useGeofenceSync } from '@/features/geofence/hooks';
 
 /**
  * שער הניווט: אין session → (auth); יש session אך אין בית נוכחי → onboarding; אחרת → (tabs).
@@ -19,6 +20,7 @@ export function RootGate() {
   const waiting = loading || (!!session && profile.isLoading);
   usePushRegistration(!!session && !!profile.data?.current_house_id);
   useReminders(!!session && !!profile.data?.current_house_id);
+  useGeofenceSync(!!session && !!profile.data?.current_house_id);
 
   if (waiting) {
     return (

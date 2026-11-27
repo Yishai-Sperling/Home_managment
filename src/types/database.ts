@@ -32,6 +32,10 @@ export interface House {
   admin_email: string;
   created_by: string;
   created_at: string;
+  /** מיקום הבית לזיהוי אוטומטי של מי בבית (null אם לא נקבע) */
+  home_lat?: number | null;
+  home_lng?: number | null;
+  home_radius_m?: number | null;
 }
 
 /** מצב "מי בבית" של דייר בבית מסוים: בבית / בחוץ / חוזר עוד מעט. */

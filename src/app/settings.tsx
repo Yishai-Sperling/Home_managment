@@ -10,6 +10,8 @@ import { unregisterPush } from '@/features/notifications/registerPush';
 import { NOTIFY_PREF_LABELS, useNotifyPrefs } from '@/features/notifications/prefs';
 import { Avatar } from '@/components/Avatar';
 import { ToothbrushIcon, ToothbrushPicker, brushColorName, isBrushColor, takenByOthers, useSetToothbrushColor } from '@/features/house/toothbrush';
+import { AutoPresenceSection } from '@/features/geofence/AutoPresenceSection';
+import { disableAutoPresence } from '@/features/geofence/service';
 import { supabase } from '@/lib/supabase';
 import { useProfile, useSession } from '@/lib/session';
 import { useCurrentHouse, useHouseMembers, useHouses, useLeaveHouse, useRemoveMember, useUpdateProfile } from '@/features/house/hooks';
@@ -155,7 +157,7 @@ export default function SettingsScreen() {
   function confirmSignOut() {
     Alert.alert('התנתקות', 'להתנתק מהחשבון?', [
       { text: 'ביטול', style: 'cancel' },
-      { text: 'התנתק', style: 'destructive', onPress: async () => { await unregisterPush(); await supabase.auth.signOut(); } },
+      { text: 'התנתק', style: 'destructive', onPress: async () => { await unregisterPush(); await disableAutoPresence(); await supabase.auth.signOut(); } },
     ]);
   }
 
@@ -176,6 +178,10 @@ export default function SettingsScreen() {
             <Text variant="small" muted>{session?.user.email}</Text>
             <Button title={saved ? 'נשמר ✓' : 'שמירה'} onPress={saveProfile} disabled={!dirty} loading={updateProfile.isPending} />
           </Card>
+        </Section>
+
+        <Section title="מי בבית: זיהוי אוטומטי" delay={20}>
+          <AutoPresenceSection />
         </Section>
 
         <Section title="מברשת השיניים שלי" delay={40}>
