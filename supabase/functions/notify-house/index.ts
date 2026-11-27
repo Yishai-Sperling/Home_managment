@@ -154,6 +154,12 @@ function buildMessage(
   }
 }
 
+/** שורת "סיבה: ..." להתראה על שריון רכב, כשהוזנה מטרה. */
+function purposeLine(r: Record<string, unknown>): string {
+  const purpose = String(r.purpose ?? "").trim();
+  return purpose ? `\nסיבה: ${purpose}` : "";
+}
+
 function buildPush(
   table: Table,
   r: Record<string, unknown>,
@@ -163,9 +169,9 @@ function buildPush(
     case "shopping_items":
       return { body: `${actor} הוסיף/ה לקניות: ${r.name ?? ""}${r.quantity ? ` (${r.quantity})` : ""}`, screen: "shopping" };
     case "car_reservations":
-      return { body: `${actor} שריינ/ה את הרכב: ${fmtDate(r.starts_at)} עד ${fmtDate(r.ends_at)}`, screen: "car" };
+      return { body: `${actor} שריינ/ה את הרכב: ${fmtDate(r.starts_at)} עד ${fmtDate(r.ends_at)}${purposeLine(r)}`, screen: "car" };
     case "car_recurring_rules":
-      return { body: `${actor} שריינ/ה את הרכב בקביעות: ${fmtRecurring(r)}`, screen: "car" };
+      return { body: `${actor} שריינ/ה את הרכב בקביעות: ${fmtRecurring(r)}${purposeLine(r)}`, screen: "car" };
     case "announcements":
       return { body: `${actor} פרסם/ה מודעה: ${r.title ?? ""}`, screen: "announcements" };
     case "issues":
