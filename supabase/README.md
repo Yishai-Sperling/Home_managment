@@ -93,3 +93,9 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls.sql
 1. **SQL Editor:** הריצו את `migrations/0012_house_location.sql`. בלי שום עריכה, בטוח להרצה חוזרת.
 2. **מה חדש:** עמודות `home_lat` / `home_lng` / `home_radius_m` (ברירת מחדל 150 מטר, טווח 50–1000) ב-`houses`. כל חבר בית קורא; עדכון רק למנהל, דרך `set_house_location(p_house uuid, p_lat double precision default null, p_lng double precision default null, p_radius_m integer default 150)` (שגיאות: `not_authenticated`, `not_member`, `forbidden`, `invalid_location`). שליחת `null` בשתי הקואורדינטות מנקה את המיקום.
 3. **בדיקות:** `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/location.sql` (אחרי 0001–0004, 0006, 0007, 0009, 0010, 0012; מסתיים ב-`ALL LOCATION TESTS PASSED`).
+
+## עדכון: התראות "הגיע/יצא מהבית"
+1. **SQL Editor:** הריצו את `migrations/0013_presence_webhook.sql` (אחרי 0010 ו-0011). בלי שום עריכה, בטוח להרצה חוזרת: הוא מעתיק את כתובת ה-Webhook והסוד מהטריגר הקיים `notify_house_webhook` שעל `shopping_items` ויוצר טריגר `notify_house_webhook_presence` על `house_members` שנורה רק כשהעמודה `presence` משתנה. אם הטריגר הקיים לא נמצא תודפס הודעה והשלב ידולג.
+2. **הפונקציה:** פרסו מחדש את `functions/notify-house/index.ts` (Edge Functions ← `notify-house` ← Code; Verify JWT נשאר כבוי).
+3. **התנהגות:** Push בלבד לשאר חברי הבית ("דנה הגיעה הביתה" / "דנה יצאה מהבית"), רק למי שהפעיל `notify_prefs.presence_events = true` (ברירת מחדל: כבוי). לא נשלח אם הפועל כיבה `share_presence`. מעבר ל-`soon`/ניקוי מתעלמים, ושינוי בין home ל-away בפחות מ-5 דקות מהקודם נחסם (נגד הבהוב).
+4. **בדיקות:** `tests/presence_webhook.sql` (דורש קודם את `tests/webhook_stub.sql` אחרי ה-shim ולפני 0005).
