@@ -57,6 +57,8 @@ export interface HouseMember {
   /** מתי הדייר צפוי לחזור (כש-presence = 'soon') */
   presence_eta?: string | null;
   presence_updated_at?: string | null;
+  /** true אם העדכון האחרון הגיע מהזיהוי האוטומטי (גיאופנסינג): לא פג תוקף עד האירוע הבא */
+  presence_auto?: boolean;
   profile?: Pick<Profile, 'id' | 'full_name' | 'phone'> & { toothbrush_color?: string | null };
 }
 

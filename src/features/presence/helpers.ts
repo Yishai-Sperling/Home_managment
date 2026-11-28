@@ -1,17 +1,19 @@
 import type { PresenceStatus } from '@/types/database';
 
-/** אחרי כמה זמן סטטוס נחשב לא עדכני. */
-export const PRESENCE_TTL_MS = 16 * 60 * 60 * 1000;
+/** אחרי כמה זמן סימון ידני נחשב לא עדכני. עדכון אוטומטי (גיאופנסינג) לא פג: הוא נשאר נכון עד לאירוע הבא. */
+export const PRESENCE_TTL_MS = 24 * 60 * 60 * 1000;
 
 export interface PresenceLike {
   presence?: PresenceStatus | null;
   presence_eta?: string | null;
   presence_updated_at?: string | null;
+  presence_auto?: boolean | null;
 }
 
 /** הסטטוס בפועל: null אם לא עודכן או שעבר התוקף. */
 export function effectivePresence(m: PresenceLike, now: Date = new Date()): PresenceStatus | null {
   if (!m.presence) return null;
+  if (m.presence_auto && m.presence !== 'soon') return m.presence;
   if (!m.presence_updated_at) return m.presence;
   const t = new Date(m.presence_updated_at).getTime();
   if (Number.isNaN(t)) return m.presence;

@@ -8,8 +8,13 @@ describe('effectivePresence', () => {
   it('returns status when fresh', () => {
     expect(effectivePresence({ presence: 'home', presence_updated_at: ago(2) }, now)).toBe('home');
   });
-  it('expires after 16h', () => {
-    expect(effectivePresence({ presence: 'home', presence_updated_at: ago(17) }, now)).toBeNull();
+  it('expires a manual status after 24h', () => {
+    expect(effectivePresence({ presence: 'home', presence_updated_at: ago(23) }, now)).toBe('home');
+    expect(effectivePresence({ presence: 'home', presence_updated_at: ago(25) }, now)).toBeNull();
+  });
+  it('never expires an automatic (geofence) status', () => {
+    expect(effectivePresence({ presence: 'home', presence_auto: true, presence_updated_at: ago(72) }, now)).toBe('home');
+    expect(effectivePresence({ presence: 'away', presence_auto: true, presence_updated_at: ago(200) }, now)).toBe('away');
   });
   it('null stays null', () => {
     expect(effectivePresence({ presence: null }, now)).toBeNull();
@@ -22,7 +27,7 @@ describe('presenceText', () => {
     expect(presenceText({ presence: 'home', presence_updated_at: ago(1) }, now)).toBe('בבית');
     expect(presenceText({ presence: 'away', presence_updated_at: ago(1) }, now)).toBe('בחוץ');
     expect(presenceText({ presence: null }, now)).toBe('לא עודכן');
-    expect(presenceText({ presence: 'home', presence_updated_at: ago(20) }, now)).toBe('לא עודכן');
+    expect(presenceText({ presence: 'home', presence_updated_at: ago(30) }, now)).toBe('לא עודכן');
   });
   it('soon with eta shows HH:MM', () => {
     const eta = new Date(2026, 10, 20, 13, 5).toISOString();

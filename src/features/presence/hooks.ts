@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { callSetPresence } from './rpc';
 import { useCurrentHouseId, useSession } from '@/lib/session';
 import { useRealtimeInvalidate } from '@/lib/realtime';
 import type { PresenceStatus } from '@/types/database';
@@ -34,14 +35,14 @@ export function useSetPresence() {
   const uid = session?.user.id;
   return useMutation({
     mutationFn: async (v: { status: PresenceStatus | null; eta?: string | null }) => {
-      const { error } = await supabase.rpc('set_presence', { p_house: houseId, p_status: v.status, p_eta: v.eta ?? null });
+      const { error } = await callSetPresence({ houseId: houseId!, status: v.status, eta: v.eta ?? null, auto: false });
       if (error) throw error;
     },
     onMutate: async (v) => {
       await qc.cancelQueries({ queryKey: ['presence', houseId] });
       const prev = qc.getQueryData<MemberWithProfile[]>(['presence', houseId]);
       qc.setQueryData<MemberWithProfile[]>(['presence', houseId], (old) => old?.map((m) => m.user_id === uid
-        ? { ...m, presence: v.status, presence_eta: v.status === 'soon' ? v.eta ?? null : null, presence_updated_at: new Date().toISOString() }
+        ? { ...m, presence: v.status, presence_eta: v.status === 'soon' ? v.eta ?? null : null, presence_updated_at: new Date().toISOString(), presence_auto: false }
         : m));
       return { prev };
     },

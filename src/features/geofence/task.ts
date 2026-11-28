@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
+import { callSetPresence } from '@/features/presence/rpc';
 import { supabase } from '@/lib/supabase';
 import { shouldApplyPresence, type LastApplied } from './geo';
 
@@ -39,7 +40,7 @@ export async function applyAutoPresence(houseId: string, status: 'home' | 'away'
 
     const { data } = await supabase.auth.getSession(); // מרענן טוקן שפג אם צריך
     if (!data.session) return;
-    const { error } = await supabase.rpc('set_presence', { p_house: houseId, p_status: status, p_eta: null });
+    const { error } = await callSetPresence({ houseId, status, eta: null, auto: true });
     if (!error) await AsyncStorage.setItem(LAST_KEY, JSON.stringify({ status, at: now }));
   } catch { /* ברקע: לא להפיל את המשימה */ }
 }
