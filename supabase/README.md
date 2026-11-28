@@ -99,3 +99,8 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls.sql
 2. **הפונקציה:** פרסו מחדש את `functions/notify-house/index.ts` (Edge Functions ← `notify-house` ← Code; Verify JWT נשאר כבוי).
 3. **התנהגות:** Push בלבד לשאר חברי הבית ("דנה הגיעה הביתה" / "דנה יצאה מהבית"), רק למי שהפעיל `notify_prefs.presence_events = true` (ברירת מחדל: כבוי). לא נשלח אם הפועל כיבה `share_presence`. מעבר ל-`soon`/ניקוי מתעלמים, ושינוי בין home ל-away בפחות מ-5 דקות מהקודם נחסם (נגד הבהוב).
 4. **בדיקות:** `tests/presence_webhook.sql` (דורש קודם את `tests/webhook_stub.sql` אחרי ה-shim ולפני 0005).
+
+## עדכון: נוכחות אוטומטית (גדר גיאוגרפית)
+1. **SQL Editor:** הריצו את `migrations/0014_presence_auto.sql`. בלי שום עריכה, בטוח להרצה חוזרת.
+2. **מה חדש:** עמודה `house_members.presence_auto` (ברירת מחדל `false`) והחתימה החדשה `set_presence(p_house uuid, p_status text, p_eta timestamptz default null, p_auto boolean default false)`; הפונקציה הישנה בשלושה ארגומנטים נמחקת. `p_auto = true` מסמן שהעדכון הגיע מהגדר האוטומטית; השמטה או סטטוס `null` מאפסים אותו.
+3. **בדיקות:** `tests/presence_auto.sql` (אחרי 0001–0014 והסטאב, כמו ב-`presence_webhook.sql`).
